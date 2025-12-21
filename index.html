@@ -18,7 +18,7 @@
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
   </style>
 
-  <!-- 2. vConsole -->
+  <!-- 2. vConsole (디버깅용) -->
   <script src="https://unpkg.com/vconsole@latest/dist/vconsole.min.js"></script>
   <script>
     try { var vConsole = new VConsole(); } catch(e) {}
@@ -39,7 +39,7 @@
   <div id="loading-screen">
       <div class="loader"></div>
       <h2 style="color: #60a5fa;">로딩 중...</h2>
-      <div id="loading-msg" style="margin-top:10px; color:#94a3b8; font-size:12px;">서버와 통신 중...</div>
+      <div id="loading-msg" style="margin-top:10px; color:#94a3b8; font-size:12px;">서버 연결 시도 중...</div>
   </div>
 
   <div id="root"></div>
@@ -48,7 +48,8 @@
     const { useState, useEffect, useRef } = React;
 
     // =================================================================================
-    // [설정] 여기에 구글 앱 스크립트(GAS) 웹 앱 URL을 붙여넣으세요
+    // [필수 설정] 아래 따옴표("") 안에 구글 앱 스크립트 웹 앱 URL을 붙여넣으세요.
+    // 예: "https://script.google.com/macros/s/AKfycbx.../exec"
     // =================================================================================
     const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwvL_qsVVvaS45572soDLu8byVX70XA4FCKf8jPcXTz8pA6LJvdBWCZo4Y7zl07Dn45og/exec"; 
     
@@ -58,9 +59,8 @@
     const ITEM_RANGES = { Common: { min: 1, max: 10, price: 50 }, Rare: { min: 10, max: 20, price: 200 }, Unique: { min: 20, max: 30, price: 1000 }, Legend: { min: 30, max: 50, price: 5000 }, Myth: { min: 50, max: 100, price: 10000 } };
     const ENHANCE_RATES = [0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.1];
 
-    // 비상용 데모 데이터
     const MOCK_QUESTIONS = [
-      { subject: '시스템', question: "서버 연결에 실패했습니다. (URL 확인 필요)", options: ['새로고침', '관리자 문의'], answer: 0 },
+      { subject: '시스템', question: "구글 시트 연결을 확인해주세요. (URL 미설정)", options: ['새로고침', '관리자 문의'], answer: 0 },
       { subject: '수학', question: "1 + 1 = ?", options: ['1', '2', '3', '4'], answer: 1 },
     ];
 
@@ -139,7 +139,6 @@
       const [message, setMessage] = useState(null);
       const [accountId, setAccountId] = useState(null);
 
-      // --- [수정된 부분] 안전한 데이터 로딩 ---
       useEffect(() => {
         const hideLoading = () => {
             const loader = document.getElementById('loading-screen');
@@ -151,53 +150,54 @@
         if (savedName) setLoginName(savedName);
         if (savedPw) setLoginPw(savedPw);
 
-        // 1. 타이머 레퍼런스 저장 (나중에 취소하기 위함)
         const safetyTimer = setTimeout(() => {
-            console.warn("Loading timeout: Showing demo data");
-            // 이미 데이터가 로드되었다면 덮어쓰지 않음
-            setQuestions(prev => {
-                if (prev.length === 0) {
-                    hideLoading();
-                    return MOCK_QUESTIONS;
-                }
-                return prev;
-            });
-            setLoading(false);
+            if(loading) {
+                console.warn("Loading timeout");
+                if (questions.length === 0) setQuestions(MOCK_QUESTIONS);
+                setLoading(false);
+                hideLoading();
+            }
         }, 5000); 
 
-        // 2. 데이터 가져오기
-        fetch(GOOGLE_SCRIPT_URL)
-            .then(res => res.json())
-            .then(data => {
-                // 성공하면 타이머 취소!
-                clearTimeout(safetyTimer); 
-                
-                if (data && data.length > 0) {
-                    const formatted = data.map(item => ({
-                        subject: item.subject,
-                        question: item.question,
-                        options: item.options,
-                        answer: parseInt(item.answer) - 1
-                    }));
-                    setQuestions(formatted);
-                    console.log("Loaded questions from GAS:", formatted.length);
-                } else {
+        // [핵심 수정] URL 유효성 검사 및 GAS 데이터 로드
+        if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL.includes("여기에_URL")) {
+            console.warn("URL 미설정");
+            setQuestions(MOCK_QUESTIONS);
+            setLoading(false);
+            hideLoading();
+        } else {
+            fetch(GOOGLE_SCRIPT_URL)
+                .then(res => {
+                    if (!res.ok) throw new Error("Network response was not ok");
+                    return res.json();
+                })
+                .then(data => {
+                    clearTimeout(safetyTimer); 
+                    if (data && data.length > 0) {
+                        const formatted = data.map(item => ({
+                            subject: item.subject,
+                            question: item.question,
+                            options: item.options,
+                            answer: parseInt(item.answer) - 1
+                        }));
+                        setQuestions(formatted);
+                    } else {
+                        setQuestions(MOCK_QUESTIONS);
+                    }
+                    setLoading(false);
+                    hideLoading();
+                })
+                .catch(err => {
+                    clearTimeout(safetyTimer);
+                    console.error("Fetch Error:", err);
                     setQuestions(MOCK_QUESTIONS);
-                }
-                setLoading(false);
-                hideLoading();
-            })
-            .catch(err => {
-                clearTimeout(safetyTimer); // 에러나도 타이머 취소
-                console.error("Fetch Error:", err);
-                // setQuestions(MOCK_QUESTIONS); // 에러나면 비워두거나 데모 사용
-                setLoading(false);
-                hideLoading();
-            });
+                    setLoading(false);
+                    hideLoading();
+                });
+        }
 
         if(auth) auth.signInAnonymously().catch(console.warn);
 
-        // 컴포넌트가 사라질 때 타이머 정리
         return () => clearTimeout(safetyTimer);
       }, []);
 
@@ -298,6 +298,33 @@
         setCurrentQuestion(q);
       };
 
+      const tryDropItem = (playerToUpdate) => {
+        const roll = Math.random();
+        let rarity = null;
+        if (roll < RARITY_RATES.Myth) rarity = 'Myth';
+        else if (roll < RARITY_RATES.Legend + RARITY_RATES.Myth) rarity = 'Legend';
+        else if (roll < RARITY_RATES.Unique + RARITY_RATES.Legend) rarity = 'Unique';
+        else if (roll < RARITY_RATES.Rare + RARITY_RATES.Unique) rarity = 'Rare';
+        else if (roll < RARITY_RATES.Common + RARITY_RATES.Rare) rarity = 'Common';
+        
+        if (rarity) {
+          const range = ITEM_RANGES[rarity];
+          const atk = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
+          const newItem = { id: Date.now() + Math.random().toString(), name: `${rarity} 검`, rarity, atk, value: range.price, enhanceLevel: 0, type: 'weapon' };
+          playerToUpdate.inventory.push(newItem);
+          showMessage(`[${rarity}] 아이템 획득!`, 'success');
+        }
+      };
+
+      const dropBossReward = (playerToUpdate) => {
+        const rarity = Math.random() < 0.1 ? 'Myth' : 'Legend';
+        const range = ITEM_RANGES[rarity];
+        const atk = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
+        const newItem = { id: Date.now().toString(), name: `보스 슬레이어 (${rarity})`, rarity, atk, value: range.price * 2, enhanceLevel: 0, type: 'weapon' };
+        playerToUpdate.inventory.push(newItem);
+        showMessage(`보스 보상: ${newItem.name} 획득!`, 'success');
+      };
+
       const handleAnswer = (idx) => {
         if (!monster || !currentQuestion || isRespawning) return;
         const isCorrect = idx === currentQuestion.answer;
@@ -368,33 +395,6 @@
         }
         setBattleLog(prev => [logMsg, ...prev].slice(0, 5));
         savePlayerData(newPlayer);
-      };
-
-      const tryDropItem = (playerToUpdate) => {
-        const roll = Math.random();
-        let rarity = null;
-        if (roll < RARITY_RATES.Myth) rarity = 'Myth';
-        else if (roll < RARITY_RATES.Legend + RARITY_RATES.Myth) rarity = 'Legend';
-        else if (roll < RARITY_RATES.Unique + RARITY_RATES.Legend) rarity = 'Unique';
-        else if (roll < RARITY_RATES.Rare + RARITY_RATES.Unique) rarity = 'Rare';
-        else if (roll < RARITY_RATES.Common + RARITY_RATES.Rare) rarity = 'Common';
-        
-        if (rarity) {
-          const range = ITEM_RANGES[rarity];
-          const atk = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
-          const newItem = { id: Date.now() + Math.random().toString(), name: `${rarity} 검`, rarity, atk, value: range.price, enhanceLevel: 0, type: 'weapon' };
-          playerToUpdate.inventory.push(newItem);
-          showMessage(`[${rarity}] 아이템 획득!`, 'success');
-        }
-      };
-
-      const dropBossReward = (playerToUpdate) => {
-        const rarity = Math.random() < 0.1 ? 'Myth' : 'Legend';
-        const range = ITEM_RANGES[rarity];
-        const atk = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
-        const newItem = { id: Date.now().toString(), name: `보스 슬레이어 (${rarity})`, rarity, atk, value: range.price * 2, enhanceLevel: 0, type: 'weapon' };
-        playerToUpdate.inventory.push(newItem);
-        showMessage(`보스 보상: ${newItem.name} 획득!`, 'success');
       };
 
       const sellItem = (itemId) => {

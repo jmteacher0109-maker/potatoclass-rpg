@@ -9,6 +9,8 @@
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap');
     body { font-family: 'Noto Sans KR', sans-serif; background-color: #0f172a; color: white; margin: 0; padding: 0; }
+    
+    /* 로딩 화면 스타일 */
     #loading-screen { 
         position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
         background: #0f172a; display: flex; flex-direction: column; 
@@ -18,7 +20,7 @@
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
   </style>
 
-  <!-- 2. vConsole (디버깅용) -->
+  <!-- 2. vConsole (모바일 디버깅용) -->
   <script src="https://unpkg.com/vconsole@latest/dist/vconsole.min.js"></script>
   <script>
     try { var vConsole = new VConsole(); } catch(e) {}
@@ -37,10 +39,11 @@
 </head>
 <body>
 
+  <!-- 로딩 화면 (리액트 로딩 전) -->
   <div id="loading-screen">
       <div class="loader"></div>
-      <h2 style="color: #60a5fa;">로딩 중...</h2>
-      <div id="loading-msg" style="margin-top:10px; color:#94a3b8; font-size:12px;">데이터 연결 시도 중...</div>
+      <h2 style="color: #60a5fa;">서버와 통신 중...</h2>
+      <div id="loading-status" style="margin-top:10px; color:#94a3b8; font-size:12px;">잠시만 기다려주세요.</div>
   </div>
 
   <div id="root"></div>
@@ -61,8 +64,8 @@
 
     // 비상용 데모 데이터 (연결 실패 시에만 사용)
     const MOCK_QUESTIONS = [
-      { id: 9991, subject: '시스템', question: "데이터 연결에 실패했습니다.", options: ['새로고침', '관리자 문의'], answer: 0 },
-      { id: 9992, subject: '수학', question: "1 + 1 = ?", options: ['1', '2', '3', '4'], answer: 1 },
+      { subject: '시스템', question: "데이터 연결에 실패했습니다.", options: ['새로고침', '관리자 문의'], answer: 0 },
+      { subject: '수학', question: "1 + 1 = ?", options: ['1', '2', '3', '4'], answer: 1 },
     ];
 
     // --- Firebase 설정 ---
@@ -123,15 +126,13 @@
 
     function App() {
       const [loading, setLoading] = useState(true);
-      const [errorMsg, setErrorMsg] = useState(null);
+      const [errorMsg, setErrorMsg] = useState(null); // 에러 메시지 상태
       const [view, setView] = useState('login');
       const [loginName, setLoginName] = useState('');
       const [loginPw, setLoginPw] = useState('');
       
-      // 초기 플레이어 상태 (solved: [] 추가)
       const defaultPlayer = {
-        name: '모험가', level: 1, exp: 0, maxExp: 100, hp: 100, maxHp: 100, gold: 0, baseAtk: 10, 
-        equippedWeapon: null, inventory: [], solved: [] 
+        name: '모험가', level: 1, exp: 0, maxExp: 100, hp: 100, maxHp: 100, gold: 0, baseAtk: 10, equippedWeapon: null, inventory: []
       };
 
       const [player, setPlayer] = useState(defaultPlayer);
@@ -145,18 +146,25 @@
       const [message, setMessage] = useState(null);
       const [accountId, setAccountId] = useState(null);
 
+      // --- [수정됨] 안전한 데이터 로딩 (GAS 전용) ---
       useEffect(() => {
         let isMounted = true;
         const savedName = localStorage.getItem('last_login_name');
         if (savedName) setLoginName(savedName);
 
+        // 1. 타이머: 10초 동안 응답 없으면 타임아웃 처리
         const safetyTimer = setTimeout(() => {
             if (isMounted) {
                 console.warn("Loading timeout");
                 setErrorMsg("서버 응답 시간이 초과되었습니다. (10초)");
+                // 타임아웃되어도 데모 데이터로 넘어가게 할 수 있지만, 원인을 보여주기 위해 에러 상태 유지
+                // 원한다면 아래 주석 해제하여 데모 모드로 강제 진입 가능
+                // setQuestions(MOCK_QUESTIONS); 
+                // setLoading(false);
             }
         }, 10000);
 
+        // 2. 데이터 가져오기
         if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL.includes("여기에")) {
              clearTimeout(safetyTimer);
              if(isMounted) {
@@ -174,19 +182,17 @@
             })
             .then(data => {
                 if(!isMounted) return;
-                clearTimeout(safetyTimer);
+                clearTimeout(safetyTimer); // 성공하면 타이머 해제
                 
                 if (Array.isArray(data) && data.length > 0) {
-                    // 데이터에 고유 ID(인덱스) 부여
-                    const formatted = data.map((item, index) => ({
-                        id: index, // 문제 고유 번호
+                    const formatted = data.map(item => ({
                         subject: item.subject,
                         question: item.question,
                         options: item.options,
                         answer: parseInt(item.answer) - 1
                     }));
                     setQuestions(formatted);
-                    setErrorMsg(null);
+                    setErrorMsg(null); // 에러 없음
                 } else {
                     throw new Error("데이터가 비어있거나 형식이 잘못되었습니다.");
                 }
@@ -197,7 +203,7 @@
                 clearTimeout(safetyTimer);
                 console.error("Fetch Error:", err);
                 setErrorMsg(`데이터 불러오기 실패: ${err.message}`);
-                setQuestions(MOCK_QUESTIONS);
+                setQuestions(MOCK_QUESTIONS); // 실패 시 데모 데이터 사용
                 setLoading(false);
             });
 
@@ -206,13 +212,14 @@
         return () => { isMounted = false; clearTimeout(safetyTimer); };
       }, []);
 
-      // 로딩 화면 제거
+      // 로딩 화면 제거용
       useEffect(() => {
           if (!loading) {
               const loader = document.getElementById('loading-screen');
               if(loader) loader.style.display = 'none';
           }
       }, [loading]);
+
 
       const showMessage = (text, type) => {
         setMessage({ text, type });
@@ -229,7 +236,6 @@
         const safeSetPlayer = (data) => {
             const mergedPlayer = { ...defaultPlayer, ...data };
             if (!mergedPlayer.inventory) mergedPlayer.inventory = [];
-            if (!mergedPlayer.solved) mergedPlayer.solved = []; // 해결한 문제 목록 초기화 안전장치
             setPlayer(mergedPlayer);
             return mergedPlayer;
         };
@@ -308,27 +314,8 @@
       const pickQuestion = (isBoss = false, specificSubject = null) => {
         const subject = isBoss ? ['국어','수학','사회','과학','상식'][Math.floor(Math.random()*5)] : (specificSubject || currentSubject);
         const safeQuestions = questions.length > 0 ? questions : MOCK_QUESTIONS;
-        
-        // 1. 해당 과목 문제 필터링
-        let subjectQuestions = safeQuestions.filter(q => q.subject === subject);
-        if (subjectQuestions.length === 0) subjectQuestions = safeQuestions; // 없으면 전체에서
-
-        // 2. [중요] 이미 푼 문제(solved 목록에 있는 ID) 제외
-        const solvedList = player.solved || [];
-        const unsolvedQuestions = subjectQuestions.filter(q => !solvedList.includes(q.id));
-
-        // 3. 안 푼 문제가 있으면 거기서 뽑고, 다 풀었으면 전체에서 다시 뽑음
-        let finalCandidates = unsolvedQuestions;
-        if (finalCandidates.length === 0) {
-            // 해당 과목 문제를 다 푼 경우
-            if (!isBoss) showMessage(`${subject} 마스터! (복습 모드)`, 'info');
-            finalCandidates = subjectQuestions; 
-        }
-
-        const q = finalCandidates.length > 0 
-            ? finalCandidates[Math.floor(Math.random() * finalCandidates.length)] 
-            : safeQuestions[0];
-            
+        const filtered = safeQuestions.filter(q => q.subject === subject);
+        const q = filtered.length > 0 ? filtered[Math.floor(Math.random() * filtered.length)] : safeQuestions[Math.floor(Math.random() * safeQuestions.length)];
         setCurrentQuestion(q);
       };
 
@@ -363,16 +350,10 @@
         if (!monster || !currentQuestion || isRespawning) return;
         const isCorrect = idx === currentQuestion.answer;
         const newPlayer = { ...player };
-        newPlayer.inventory = [...(player.inventory || [])];
-        newPlayer.solved = [...(player.solved || [])]; // 푼 문제 목록 복사
+        newPlayer.inventory = [...player.inventory];
         let logMsg = '';
 
         if (isCorrect) {
-          // [중요] 정답 시 푼 문제 목록에 추가 (중복 방지)
-          if (currentQuestion.id !== undefined && !newPlayer.solved.includes(currentQuestion.id)) {
-              newPlayer.solved.push(currentQuestion.id);
-          }
-
           if (view === 'boss') {
             const newStreak = bossStreak + 1;
             setBossStreak(newStreak);

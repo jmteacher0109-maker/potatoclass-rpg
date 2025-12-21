@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>POTATO RPG</title>
   
+  <!-- 1. 스타일 설정 -->
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap');
     body { font-family: 'Noto Sans KR', sans-serif; background-color: #0f172a; color: white; margin: 0; padding: 0; }
@@ -17,14 +18,19 @@
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
   </style>
 
+  <!-- 2. vConsole (디버깅용) -->
   <script src="https://unpkg.com/vconsole@latest/dist/vconsole.min.js"></script>
-  <script>try { var vConsole = new VConsole(); } catch(e) {}</script>
+  <script>
+    try { var vConsole = new VConsole(); } catch(e) {}
+  </script>
 
+  <!-- 3. 필수 라이브러리 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   
+  <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
@@ -47,16 +53,19 @@
     // =================================================================================
     const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwvL_qsVVvaS45572soDLu8byVX70XA4FCKf8jPcXTz8pA6LJvdBWCZo4Y7zl07Dn45og/exec"; 
     
+    // --- 게임 밸런스 설정 ---
     const RARITY_RATES = { Myth: 0.0001, Legend: 0.01, Unique: 0.1, Rare: 0.2, Common: 0.3 };
     const RARITY_COLORS = { Common: 'text-gray-500', Rare: 'text-blue-500', Unique: 'text-purple-500', Legend: 'text-orange-500', Myth: 'text-red-600 font-bold animate-pulse' };
     const ITEM_RANGES = { Common: { min: 1, max: 10, price: 50 }, Rare: { min: 10, max: 20, price: 200 }, Unique: { min: 20, max: 30, price: 1000 }, Legend: { min: 30, max: 50, price: 5000 }, Myth: { min: 50, max: 100, price: 10000 } };
     const ENHANCE_RATES = [0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.1];
 
+    // 비상용 데모 데이터 (연결 실패 시에만 사용)
     const MOCK_QUESTIONS = [
       { id: 9991, subject: '시스템', question: "데이터 연결에 실패했습니다.", options: ['새로고침', '관리자 문의'], answer: 0 },
       { id: 9992, subject: '수학', question: "1 + 1 = ?", options: ['1', '2', '3', '4'], answer: 1 },
     ];
 
+    // --- Firebase 설정 ---
     const firebaseConfig = {
       apiKey: "AIzaSyDOzfbbafGWHHC2QbGXTsp67bop74O5RIM",
       authDomain: "potatp-rpg.firebaseapp.com",
@@ -78,6 +87,7 @@
     const auth = isFirebaseOk ? firebase.auth() : null;
     const appId = 'educational-rpg-gsheet';
 
+    // --- 아이콘 ---
     const Icons = {
       Sword: ({size=20, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"/><line x1="13" x2="19" y1="19" y2="13"/><line x1="16" x2="20" y1="16" y2="20"/><line x1="19" x2="21" y1="21" y2="19"/></svg>,
       Shield: ({size=20, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>,
@@ -92,6 +102,7 @@
       RefreshCw: ({size=20, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>,
     };
 
+    // 에러 경계
     class ErrorBoundary extends React.Component {
       constructor(props) { super(props); this.state = { hasError: false, error: null }; }
       static getDerivedStateFromError(error) { return { hasError: true, error }; }
@@ -117,6 +128,7 @@
       const [loginName, setLoginName] = useState('');
       const [loginPw, setLoginPw] = useState('');
       
+      // 초기 플레이어 상태 (solved: [] 추가)
       const defaultPlayer = {
         name: '모험가', level: 1, exp: 0, maxExp: 100, hp: 100, maxHp: 100, gold: 0, baseAtk: 10, 
         equippedWeapon: null, inventory: [], solved: [] 
@@ -165,8 +177,9 @@
                 clearTimeout(safetyTimer);
                 
                 if (Array.isArray(data) && data.length > 0) {
+                    // 데이터에 고유 ID(인덱스) 부여
                     const formatted = data.map((item, index) => ({
-                        id: index, 
+                        id: index, // 문제 고유 번호
                         subject: item.subject,
                         question: item.question,
                         options: item.options,
@@ -193,6 +206,7 @@
         return () => { isMounted = false; clearTimeout(safetyTimer); };
       }, []);
 
+      // 로딩 화면 제거
       useEffect(() => {
           if (!loading) {
               const loader = document.getElementById('loading-screen');
@@ -215,12 +229,12 @@
         const safeSetPlayer = (data) => {
             const mergedPlayer = { ...defaultPlayer, ...data };
             if (!mergedPlayer.inventory) mergedPlayer.inventory = [];
-            if (!mergedPlayer.solved) mergedPlayer.solved = []; 
+            if (!mergedPlayer.solved) mergedPlayer.solved = []; // 해결한 문제 목록 초기화 안전장치
             setPlayer(mergedPlayer);
             return mergedPlayer;
         };
 
-        if (!db) { 
+        if (!db) { // 로컬 모드
              const localData = localStorage.getItem('rpg_save_' + customId);
              try { 
                  if (localData) {
@@ -288,25 +302,25 @@
           const idx = Math.floor(Math.random() * types.length);
           setMonster({ name: `Lv.${level} ${types[idx]}`, level, hp, maxHp: hp, atk, image: emojis[idx] });
         }
-        
-        // [중요] 몬스터 생성 후 문제 뽑을 때 현재 플레이어의 푼 문제 목록 전달
-        pickQuestion(isBoss, specificSubject, targetPlayer.solved);
+        pickQuestion(isBoss, specificSubject);
       };
 
-      // [수정] solvedOverride 인자 추가
-      const pickQuestion = (isBoss = false, specificSubject = null, solvedOverride = null) => {
+      const pickQuestion = (isBoss = false, specificSubject = null) => {
         const subject = isBoss ? ['국어','수학','사회','과학','상식'][Math.floor(Math.random()*5)] : (specificSubject || currentSubject);
         const safeQuestions = questions.length > 0 ? questions : MOCK_QUESTIONS;
         
+        // 1. 해당 과목 문제 필터링
         let subjectQuestions = safeQuestions.filter(q => q.subject === subject);
-        if (subjectQuestions.length === 0) subjectQuestions = safeQuestions; 
+        if (subjectQuestions.length === 0) subjectQuestions = safeQuestions; // 없으면 전체에서
 
-        // [중요] 중복 방지 로직: 전달받은 solved 목록 사용
-        const solvedList = solvedOverride || player.solved || [];
+        // 2. [중요] 이미 푼 문제(solved 목록에 있는 ID) 제외
+        const solvedList = player.solved || [];
         const unsolvedQuestions = subjectQuestions.filter(q => !solvedList.includes(q.id));
 
+        // 3. 안 푼 문제가 있으면 거기서 뽑고, 다 풀었으면 전체에서 다시 뽑음
         let finalCandidates = unsolvedQuestions;
         if (finalCandidates.length === 0) {
+            // 해당 과목 문제를 다 푼 경우
             if (!isBoss) showMessage(`${subject} 마스터! (복습 모드)`, 'info');
             finalCandidates = subjectQuestions; 
         }
@@ -350,11 +364,11 @@
         const isCorrect = idx === currentQuestion.answer;
         const newPlayer = { ...player };
         newPlayer.inventory = [...(player.inventory || [])];
-        newPlayer.solved = [...(player.solved || [])]; 
+        newPlayer.solved = [...(player.solved || [])]; // 푼 문제 목록 복사
         let logMsg = '';
 
         if (isCorrect) {
-          // [중요] 정답 시 목록에 추가
+          // [중요] 정답 시 푼 문제 목록에 추가 (중복 방지)
           if (currentQuestion.id !== undefined && !newPlayer.solved.includes(currentQuestion.id)) {
               newPlayer.solved.push(currentQuestion.id);
           }
@@ -369,7 +383,7 @@
               setMonster(null);
               setView('lobby');
             } else {
-              pickQuestion(true, null, newPlayer.solved); // 최신 solved 목록 전달
+              pickQuestion(true);
             }
           } else {
             const isCrit = Math.random() < 0.2;
@@ -398,10 +412,10 @@
               }
               setMonster(null);
               setIsRespawning(true);
-              setTimeout(() => spawnMonster(false, newPlayer, null), 1500); // 다음 몬스터 생성 시에도 newPlayer 전달
+              setTimeout(() => spawnMonster(false, newPlayer), 1500);
             } else {
               setMonster({ ...monster, hp: newMonsterHp });
-              pickQuestion(false, null, newPlayer.solved); // 최신 solved 목록 전달
+              pickQuestion(false);
             }
           }
         } else {
@@ -416,8 +430,7 @@
             setMonster(null);
             setView('lobby');
           } else {
-            // 오답 시에는 문제를 바꾸지 않거나, 바꾸더라도 푼 목록은 그대로 유지
-            pickQuestion(view === 'boss', null, newPlayer.solved); 
+            pickQuestion(view === 'boss');
           }
         }
         setBattleLog(prev => [logMsg, ...prev].slice(0, 5));
@@ -498,13 +511,14 @@
          );
       };
 
-      if (loading) return null;
+      if (loading) return null; // 로딩화면은 HTML에서 별도 처리됨
 
       if (view === 'login') {
         return (
           <div className="flex flex-col h-screen items-center justify-center bg-slate-900 text-white p-4">
              <h1 className="text-4xl font-bold mb-8 text-blue-400 text-center">📘 POTATO RPG</h1>
              <div className="bg-slate-800 p-8 rounded-lg shadow-lg w-full max-w-md border border-slate-700">
+                {/* 에러 메시지 표시 영역 추가 */}
                 {errorMsg && (
                     <div className="bg-red-900/50 border border-red-500 text-red-200 p-3 rounded mb-4 text-xs">
                         ⚠️ {errorMsg}

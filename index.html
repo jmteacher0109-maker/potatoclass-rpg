@@ -55,8 +55,21 @@
   <script type="text/babel">
     const { useState, useEffect, useRef } = React;
 
+    // --- [중요] 게임 설정값 (가장 위쪽으로 이동) ---
     const GOOGLE_SHEET_CSV_URL = "./questions.csv"; 
+    
+    const RARITY_RATES = { Myth: 0.0001, Legend: 0.01, Unique: 0.1, Rare: 0.2, Common: 0.3 };
+    const RARITY_COLORS = { Common: 'text-gray-500', Rare: 'text-blue-500', Unique: 'text-purple-500', Legend: 'text-orange-500', Myth: 'text-red-600 font-bold animate-pulse' };
+    const ITEM_RANGES = { Common: { min: 1, max: 10, price: 50 }, Rare: { min: 10, max: 20, price: 200 }, Unique: { min: 20, max: 30, price: 1000 }, Legend: { min: 30, max: 50, price: 5000 }, Myth: { min: 50, max: 100, price: 10000 } };
+    const ENHANCE_RATES = [0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.1];
 
+    const MOCK_QUESTIONS = [
+      { subject: '국어', question: "논설문'을 쓰는 주요 목적은 무엇인가요?", options: ['즐거움을 주기 위해', '설득하기 위해', '설명하기 위해', '사과하기 위해'], answer: 1 },
+      { subject: '수학', question: "두 개의 원형 밑면과 옆면이 굽은 면인 입체도형은?", options: ['원뿔', '구', '원기둥', '정육면체'], answer: 2 },
+      { subject: '상식', question: "대한민국의 수도는 어디인가요?", options: ['부산', '인천', '제주', '서울'], answer: 3 },
+    ];
+
+    // --- Firebase 설정 ---
     const firebaseConfig = {
       apiKey: "AIzaSyDOzfbbafGWHHC2QbGXTsp67bop74O5RIM",
       authDomain: "potatp-rpg.firebaseapp.com",
@@ -92,16 +105,7 @@
       RefreshCw: ({size=20, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>,
     };
 
-    const RARITY_COLORS = { Common: 'text-gray-500', Rare: 'text-blue-500', Unique: 'text-purple-500', Legend: 'text-orange-500', Myth: 'text-red-600 font-bold animate-pulse' };
-    const ITEM_RANGES = { Common: { min: 1, max: 10, price: 50 }, Rare: { min: 10, max: 20, price: 200 }, Unique: { min: 20, max: 30, price: 1000 }, Legend: { min: 30, max: 50, price: 5000 }, Myth: { min: 50, max: 100, price: 10000 } };
-    const ENHANCE_RATES = [0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.1];
-
-    const MOCK_QUESTIONS = [
-      { subject: '국어', question: "논설문'을 쓰는 주요 목적은 무엇인가요?", options: ['즐거움을 주기 위해', '설득하기 위해', '설명하기 위해', '사과하기 위해'], answer: 1 },
-      { subject: '수학', question: "두 개의 원형 밑면과 옆면이 굽은 면인 입체도형은?", options: ['원뿔', '구', '원기둥', '정육면체'], answer: 2 },
-      { subject: '상식', question: "대한민국의 수도는 어디인가요?", options: ['부산', '인천', '제주', '서울'], answer: 3 },
-    ];
-
+    // [중요] 에러 방지용 경계 컴포넌트
     class ErrorBoundary extends React.Component {
       constructor(props) { super(props); this.state = { hasError: false, error: null }; }
       static getDerivedStateFromError(error) { return { hasError: true, error }; }
@@ -112,7 +116,7 @@
             <div className="p-8 text-center text-white bg-red-900 h-screen flex flex-col items-center justify-center">
               <h1 className="text-2xl font-bold mb-4">오류가 발생했습니다.</h1>
               <pre className="bg-black p-4 rounded text-left text-xs overflow-auto max-w-full">{this.state.error && this.state.error.toString()}</pre>
-              <button onClick={() => window.location.reload()} className="mt-6 bg-white text-black px-4 py-2 rounded font-bold">새로고침</button>
+              <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="mt-6 bg-white text-black px-4 py-2 rounded font-bold">초기화 및 새로고침</button>
             </div>
           );
         }
@@ -126,9 +130,12 @@
       const [loginName, setLoginName] = useState('');
       const [loginPw, setLoginPw] = useState('');
       
-      const [player, setPlayer] = useState({
+      // 초기 플레이어 상태 정의
+      const defaultPlayer = {
         name: '모험가', level: 1, exp: 0, maxExp: 100, hp: 100, maxHp: 100, gold: 0, baseAtk: 10, equippedWeapon: null, inventory: []
-      });
+      };
+
+      const [player, setPlayer] = useState(defaultPlayer);
       const [monster, setMonster] = useState(null);
       const [currentSubject, setCurrentSubject] = useState('수학');
       const [currentQuestion, setCurrentQuestion] = useState(null);
@@ -205,6 +212,7 @@
         setTimeout(() => setMessage(null), 3000);
       };
 
+      // --- 로그인 핸들러 (안전장치 포함) ---
       const handleLogin = async () => {
         if (!loginName.trim() || !loginPw.trim()) return alert("입력 필요");
         setLoading(true);
@@ -213,12 +221,25 @@
         localStorage.setItem('last_login_name', loginName.trim());
         localStorage.setItem('last_login_pw', loginPw.trim());
 
+        // 데이터를 합치는 안전한 함수
+        const safeSetPlayer = (data) => {
+            // 불러온 데이터(data)에 없는 필드는 defaultPlayer 값으로 채움
+            const mergedPlayer = { ...defaultPlayer, ...data };
+            // 특히 배열인 inventory가 없으면 빈 배열로 강제 설정
+            if (!mergedPlayer.inventory) mergedPlayer.inventory = [];
+            setPlayer(mergedPlayer);
+            return mergedPlayer;
+        };
+
         if (!db) {
              const localData = localStorage.getItem('rpg_save_' + customId);
              if (localData) {
-                 try { setPlayer(JSON.parse(localData)); } catch(e) { setPlayer({...player, name: loginName.trim()}); }
+                 try { 
+                     const p = safeSetPlayer(JSON.parse(localData));
+                     showMessage(`(로컬) ${p.name}님 환영합니다!`, 'success');
+                 } catch(e) { safeSetPlayer({name: loginName.trim()}); }
              } else {
-                 setPlayer({ ...player, name: loginName.trim() });
+                 safeSetPlayer({name: loginName.trim()});
              }
              setView('lobby');
              setLoading(false);
@@ -228,11 +249,14 @@
         try {
             const docRef = db.collection('artifacts').doc(appId).collection('accounts').doc(customId);
             const docSnap = await docRef.get();
-            if (docSnap.exists) setPlayer(docSnap.data());
-            else {
-                const newPlayer = { ...player, name: loginName.trim() };
+            if (docSnap.exists) {
+                const p = safeSetPlayer(docSnap.data());
+                showMessage(`${p.name}님, 환영합니다!`, 'success');
+            } else {
+                const newPlayer = { ...defaultPlayer, name: loginName.trim() };
                 setPlayer(newPlayer);
                 await docRef.set(newPlayer);
+                showMessage(`새로운 모험을 시작합니다.`, 'success');
             }
             setView('lobby');
         } catch(e) {
@@ -284,10 +308,41 @@
         setCurrentQuestion(q);
       };
 
+      // --- [수정] 아이템 드롭 및 보스 보상 함수 분리 ---
+      const tryDropItem = (playerToUpdate) => {
+        const roll = Math.random();
+        let rarity = null;
+        if (roll < RARITY_RATES.Myth) rarity = 'Myth';
+        else if (roll < RARITY_RATES.Legend + RARITY_RATES.Myth) rarity = 'Legend';
+        else if (roll < RARITY_RATES.Unique + RARITY_RATES.Legend) rarity = 'Unique';
+        else if (roll < RARITY_RATES.Rare + RARITY_RATES.Unique) rarity = 'Rare';
+        else if (roll < RARITY_RATES.Common + RARITY_RATES.Rare) rarity = 'Common';
+        
+        if (rarity) {
+          const range = ITEM_RANGES[rarity];
+          const atk = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
+          const newItem = { id: Date.now() + Math.random().toString(), name: `${rarity} 검`, rarity, atk, value: range.price, enhanceLevel: 0, type: 'weapon' };
+          playerToUpdate.inventory.push(newItem);
+          showMessage(`[${rarity}] 아이템 획득!`, 'success');
+        }
+      };
+
+      const dropBossReward = (playerToUpdate) => {
+        const rarity = Math.random() < 0.1 ? 'Myth' : 'Legend';
+        const range = ITEM_RANGES[rarity];
+        const atk = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
+        const newItem = { id: Date.now().toString(), name: `보스 슬레이어 (${rarity})`, rarity, atk, value: range.price * 2, enhanceLevel: 0, type: 'weapon' };
+        playerToUpdate.inventory.push(newItem);
+        showMessage(`보스 보상: ${newItem.name} 획득!`, 'success');
+      };
+
+      // --- [수정] 정답 처리 핸들러 (함수 호출 방식으로 변경) ---
       const handleAnswer = (idx) => {
         if (!monster || !currentQuestion || isRespawning) return;
         const isCorrect = idx === currentQuestion.answer;
         const newPlayer = { ...player };
+        // 깊은 복사 (배열)
+        newPlayer.inventory = [...player.inventory];
         let logMsg = '';
 
         if (isCorrect) {
@@ -297,12 +352,7 @@
             logMsg = `정답! (${newStreak}/10)`;
             if (newStreak >= 10) {
               logMsg = '보스 토벌 성공!';
-              const rarity = Math.random() < 0.1 ? 'Myth' : 'Legend';
-              const range = ITEM_RANGES[rarity];
-              const atk = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
-              const newItem = { id: Date.now().toString(), name: `보스 슬레이어 (${rarity})`, rarity, atk, value: range.price * 2, enhanceLevel: 0, type: 'weapon' };
-              newPlayer.inventory.push(newItem);
-              showMessage(`보스 보상 획득!`, 'success');
+              dropBossReward(newPlayer); // 함수 호출
               setMonster(null);
               setView('lobby');
             } else {
@@ -316,22 +366,7 @@
 
             const newMonsterHp = monster.hp - dmg;
             
-            // 아이템 드롭
-            const roll = Math.random();
-            let rarity = null;
-            if (roll < RARITY_RATES.Myth) rarity = 'Myth';
-            else if (roll < RARITY_RATES.Legend + RARITY_RATES.Myth) rarity = 'Legend';
-            else if (roll < RARITY_RATES.Unique + RARITY_RATES.Legend) rarity = 'Unique';
-            else if (roll < RARITY_RATES.Rare + RARITY_RATES.Unique) rarity = 'Rare';
-            else if (roll < RARITY_RATES.Common + RARITY_RATES.Rare) rarity = 'Common';
-            
-            if (rarity) {
-              const range = ITEM_RANGES[rarity];
-              const atk = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
-              const newItem = { id: Date.now() + Math.random().toString(), name: `${rarity} 검`, rarity, atk, value: range.price, enhanceLevel: 0, type: 'weapon' };
-              newPlayer.inventory.push(newItem);
-              showMessage(`[${rarity}] 아이템 획득!`, 'success');
-            }
+            tryDropItem(newPlayer); // 함수 호출
 
             if (newMonsterHp <= 0) {
               const expGain = 20 + (newPlayer.level * 10);
@@ -380,6 +415,8 @@
         const idx = player.inventory.findIndex(i => i.id === itemId);
         if (idx === -1) return;
         const newPlayer = { ...player };
+        // 배열 복사
+        newPlayer.inventory = [...player.inventory];
         const item = newPlayer.inventory[idx];
         if (newPlayer.equippedWeapon?.id === itemId) newPlayer.equippedWeapon = null;
         newPlayer.gold += item.value;
@@ -400,6 +437,7 @@
         if (item.enhanceLevel >= 10) return showMessage('최대 강화 상태', 'info');
         
         const newPlayer = { ...player };
+        newPlayer.inventory = [...player.inventory]; // 배열 복사
         newPlayer.gold -= cost;
         const target = newPlayer.inventory.find(i => i.id === item.id);
         if (!target) return;
@@ -416,11 +454,13 @@
         savePlayerData(newPlayer);
       };
 
-      // --- [중요] 복구된 인벤토리 렌더링 함수 ---
-      const renderInventory = (isEnhance) => (
+      // --- [복구됨] 안전한 인벤토리 렌더링 함수 ---
+      const renderInventory = (isEnhance) => {
+         const inv = player.inventory || []; // 가방이 없으면 빈 가방으로 처리
+         return (
          <div className="space-y-3">
-            {player.inventory.length === 0 ? <div className="text-center text-gray-500 py-10">가방이 비었습니다.</div> :
-            player.inventory.map(item => (
+            {inv.length === 0 ? <div className="text-center text-gray-500 py-10">가방이 비었습니다.</div> :
+            inv.map(item => (
                 <div key={item.id} className="bg-slate-700/50 p-2 rounded flex justify-between items-center border border-slate-600">
                     <div>
                         <div className={`font-bold text-sm ${RARITY_COLORS[item.rarity]}`}>
@@ -444,9 +484,10 @@
                 </div>
             ))}
          </div>
-      );
+         );
+      };
 
-      if (loading) return null; // 로딩화면은 HTML에서 처리
+      if (loading) return null;
 
       if (view === 'login') {
         return (

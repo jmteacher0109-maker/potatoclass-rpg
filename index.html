@@ -58,7 +58,9 @@
 
     // 비상용 데모 데이터 (연결 실패 시에만 표시됨)
     const MOCK_QUESTIONS = [
-      { subject: '시스템', question: "데이터 파일을 찾을 수 없습니다. (questions.csv)", options: ['파일 이름 확인', 'UTF-8 저장 확인', '새로고침', '관리자 문의'], answer: 0 }
+      { subject: '시스템', question: "데이터 파일을 찾을 수 없습니다. (questions.csv)", options: ['파일 이름 확인', 'UTF-8 저장 확인', '새로고침', '관리자 문의'], answer: 0 },
+      { subject: '국어', question: "논설문'을 쓰는 주요 목적은 무엇인가요?", options: ['즐거움을 주기 위해', '설득하기 위해', '설명하기 위해', '사과하기 위해'], answer: 1 },
+      { subject: '수학', question: "두 개의 원형 밑면과 옆면이 굽은 면인 입체도형은?", options: ['원뿔', '구', '원기둥', '정육면체'], answer: 2 },
     ];
 
     // --- Firebase 설정 ---
@@ -154,48 +156,55 @@
             console.log("Trying to load CSV:", url);
             document.getElementById('loading-msg').innerText = `데이터 연결 시도: ${url}`;
 
-            Papa.parse(url, {
-                download: true,
-                header: true,
-                skipEmptyLines: true,
-                complete: (results) => {
-                    const parsedData = results.data.map(row => {
-                        // 중요: 질문이 없거나 선택지가 없으면 제외
-                        if (!row.question) return null;
-                        
-                        // CSV 헤더 이름에 맞춰 데이터 연결
-                        return {
-                            subject: row.subject || '일반',
-                            question: row.question,
-                            options: [
-                                row['option 1'], 
-                                row['option 2'], 
-                                row['option 3'], 
-                                row['option 4']
-                            ].filter(opt => opt && opt.trim() !== ""), // 빈 보기 제외
+            try {
+                Papa.parse(url, {
+                    download: true,
+                    header: true,
+                    skipEmptyLines: true,
+                    complete: (results) => {
+                        const parsedData = results.data.map(row => {
+                            // 중요: 질문이 없거나 선택지가 없으면 제외
+                            if (!row.question) return null;
                             
-                            // CSV 정답(1~4)을 코드용 인덱스(0~3)로 변환
-                            answer: parseInt(row.answer) - 1
-                        };
-                    }).filter(item => item !== null && item.options.length >= 2); // 보기가 2개 이상인 것만
+                            // CSV 헤더 이름에 맞춰 데이터 연결
+                            return {
+                                subject: row.subject || '일반',
+                                question: row.question,
+                                options: [
+                                    row['option 1'], 
+                                    row['option 2'], 
+                                    row['option 3'], 
+                                    row['option 4']
+                                ].filter(opt => opt && opt.trim() !== ""), // 빈 보기 제외
+                                
+                                // CSV 정답(1~4)을 코드용 인덱스(0~3)로 변환
+                                answer: parseInt(row.answer) - 1
+                            };
+                        }).filter(item => item !== null && item.options.length >= 2); // 보기가 2개 이상인 것만
 
-                    if (parsedData.length > 0) {
-                        console.log("CSV Loaded Success:", parsedData.length);
-                        setQuestions(parsedData);
-                    } else {
-                        console.warn("CSV is empty or parsing failed. Using mock.");
+                        if (parsedData.length > 0) {
+                            console.log("CSV Loaded Success:", parsedData.length);
+                            setQuestions(parsedData);
+                        } else {
+                            console.warn("CSV is empty or parsing failed. Using mock.");
+                            setQuestions(MOCK_QUESTIONS);
+                        }
+                        setLoading(false);
+                        hideLoading();
+                    },
+                    error: (err) => {
+                        console.warn(`Failed loading ${url}`, err);
                         setQuestions(MOCK_QUESTIONS);
+                        setLoading(false);
+                        hideLoading();
                     }
-                    setLoading(false);
-                    hideLoading();
-                },
-                error: (err) => {
-                    console.warn(`Failed loading ${url}`, err);
-                    setQuestions(MOCK_QUESTIONS);
-                    setLoading(false);
-                    hideLoading();
-                }
-            });
+                });
+            } catch (err) {
+                console.warn("Synchronous CSV Error:", err);
+                setQuestions(MOCK_QUESTIONS);
+                setLoading(false);
+                hideLoading();
+            }
         };
 
         tryLoadCSV();

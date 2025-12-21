@@ -18,17 +18,9 @@
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
   </style>
 
-  <!-- 2. vConsole -->
+  <!-- 2. vConsole (디버깅용) -->
   <script src="https://unpkg.com/vconsole@latest/dist/vconsole.min.js"></script>
   <script>
-    window.onerror = function(msg, url, line) {
-        var errorBox = document.getElementById('error-box');
-        if(errorBox) {
-            errorBox.style.display = 'block';
-            errorBox.innerHTML += "🚫 오류: " + msg + " (줄: " + line + ")<br>";
-        }
-        return false;
-    };
     try { var vConsole = new VConsole(); } catch(e) {}
   </script>
 
@@ -47,7 +39,7 @@
   <div id="loading-screen">
       <div class="loader"></div>
       <h2 style="color: #60a5fa;">로딩 중...</h2>
-      <div id="error-box" style="display:none; color: #ff6b6b; margin-top: 20px; background: rgba(0,0,0,0.8); padding: 10px; border-radius: 5px; text-align: left; max-width: 80%; font-size: 12px; white-space: pre-wrap;"></div>
+      <div id="loading-msg" style="margin-top:10px; color:#94a3b8; font-size:12px;">데이터 연결 시도 중...</div>
   </div>
 
   <div id="root"></div>
@@ -55,18 +47,18 @@
   <script type="text/babel">
     const { useState, useEffect, useRef } = React;
 
-    // --- [중요] 게임 설정값 (가장 위쪽으로 이동) ---
-    const GOOGLE_SHEET_CSV_URL = "./questions.csv"; 
+    // --- [중요] CSV 파일 설정 ---
+    const CSV_FILE_NAME = "./questions.csv"; 
     
+    // --- [설정] 게임 밸런스 ---
     const RARITY_RATES = { Myth: 0.0001, Legend: 0.01, Unique: 0.1, Rare: 0.2, Common: 0.3 };
     const RARITY_COLORS = { Common: 'text-gray-500', Rare: 'text-blue-500', Unique: 'text-purple-500', Legend: 'text-orange-500', Myth: 'text-red-600 font-bold animate-pulse' };
     const ITEM_RANGES = { Common: { min: 1, max: 10, price: 50 }, Rare: { min: 10, max: 20, price: 200 }, Unique: { min: 20, max: 30, price: 1000 }, Legend: { min: 30, max: 50, price: 5000 }, Myth: { min: 50, max: 100, price: 10000 } };
     const ENHANCE_RATES = [0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.1];
 
+    // 비상용 데모 데이터 (연결 실패 시에만 표시됨)
     const MOCK_QUESTIONS = [
-      { subject: '국어', question: "논설문'을 쓰는 주요 목적은 무엇인가요?", options: ['즐거움을 주기 위해', '설득하기 위해', '설명하기 위해', '사과하기 위해'], answer: 1 },
-      { subject: '수학', question: "두 개의 원형 밑면과 옆면이 굽은 면인 입체도형은?", options: ['원뿔', '구', '원기둥', '정육면체'], answer: 2 },
-      { subject: '상식', question: "대한민국의 수도는 어디인가요?", options: ['부산', '인천', '제주', '서울'], answer: 3 },
+      { subject: '시스템', question: "데이터 파일을 찾을 수 없습니다. (questions.csv)", options: ['파일 이름 확인', 'UTF-8 저장 확인', '새로고침', '관리자 문의'], answer: 0 }
     ];
 
     // --- Firebase 설정 ---
@@ -91,6 +83,7 @@
     const auth = isFirebaseOk ? firebase.auth() : null;
     const appId = 'educational-rpg-gsheet';
 
+    // --- 아이콘 ---
     const Icons = {
       Sword: ({size=20, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"/><line x1="13" x2="19" y1="19" y2="13"/><line x1="16" x2="20" y1="16" y2="20"/><line x1="19" x2="21" y1="21" y2="19"/></svg>,
       Shield: ({size=20, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>,
@@ -130,7 +123,6 @@
       const [loginName, setLoginName] = useState('');
       const [loginPw, setLoginPw] = useState('');
       
-      // 초기 플레이어 상태 정의
       const defaultPlayer = {
         name: '모험가', level: 1, exp: 0, maxExp: 100, hp: 100, maxHp: 100, gold: 0, baseAtk: 10, equippedWeapon: null, inventory: []
       };
@@ -145,7 +137,6 @@
       const [questions, setQuestions] = useState([]);
       const [message, setMessage] = useState(null);
       const [accountId, setAccountId] = useState(null);
-      const [sheetUrl, setSheetUrl] = useState(GOOGLE_SHEET_CSV_URL);
 
       useEffect(() => {
         const hideLoading = () => {
@@ -158,61 +149,65 @@
         if (savedName) setLoginName(savedName);
         if (savedPw) setLoginPw(savedPw);
 
-        const safetyTimer = setTimeout(() => {
-            if(loading) {
-                console.warn("Loading timeout");
-                if (questions.length === 0) setQuestions(MOCK_QUESTIONS);
-                setLoading(false);
-                hideLoading();
-            }
-        }, 3000);
+        const tryLoadCSV = () => {
+            const url = CSV_FILE_NAME;
+            console.log("Trying to load CSV:", url);
+            document.getElementById('loading-msg').innerText = `데이터 연결 시도: ${url}`;
 
-        fetchAndParseCSV(GOOGLE_SHEET_CSV_URL, hideLoading);
-
-        if(auth) auth.signInAnonymously().catch(console.warn);
-
-        return () => clearTimeout(safetyTimer);
-      }, []);
-
-      const fetchAndParseCSV = (url, callback) => {
-        if (!url) { if(callback) callback(); return; }
-        try {
             Papa.parse(url, {
-                download: true, header: true, skipEmptyLines: true,
+                download: true,
+                header: true,
+                skipEmptyLines: true,
                 complete: (results) => {
                     const parsedData = results.data.map(row => {
-                        if (!row.subject || !row.question) return null;
+                        // 중요: 질문이 없거나 선택지가 없으면 제외
+                        if (!row.question) return null;
+                        
+                        // CSV 헤더 이름에 맞춰 데이터 연결
                         return {
-                            subject: row.subject, question: row.question,
-                            options: [row['option 1'], row['option 2'], row['option 3'], row['option 4']].filter(opt => opt),
+                            subject: row.subject || '일반',
+                            question: row.question,
+                            options: [
+                                row['option 1'], 
+                                row['option 2'], 
+                                row['option 3'], 
+                                row['option 4']
+                            ].filter(opt => opt && opt.trim() !== ""), // 빈 보기 제외
+                            
+                            // CSV 정답(1~4)을 코드용 인덱스(0~3)로 변환
                             answer: parseInt(row.answer) - 1
                         };
-                    }).filter(item => item !== null);
-                    if (parsedData.length > 0) setQuestions(parsedData);
-                    else setQuestions(MOCK_QUESTIONS);
-                    setLoading(false); 
-                    if(callback) callback();
+                    }).filter(item => item !== null && item.options.length >= 2); // 보기가 2개 이상인 것만
+
+                    if (parsedData.length > 0) {
+                        console.log("CSV Loaded Success:", parsedData.length);
+                        setQuestions(parsedData);
+                    } else {
+                        console.warn("CSV is empty or parsing failed. Using mock.");
+                        setQuestions(MOCK_QUESTIONS);
+                    }
+                    setLoading(false);
+                    hideLoading();
                 },
                 error: (err) => {
-                    console.warn("CSV Fail", err);
+                    console.warn(`Failed loading ${url}`, err);
                     setQuestions(MOCK_QUESTIONS);
                     setLoading(false);
-                    if(callback) callback();
+                    hideLoading();
                 }
             });
-        } catch (e) {
-            setQuestions(MOCK_QUESTIONS);
-            setLoading(false);
-            if(callback) callback();
-        }
-      };
+        };
+
+        tryLoadCSV();
+
+        if(auth) auth.signInAnonymously().catch(console.warn);
+      }, []);
 
       const showMessage = (text, type) => {
         setMessage({ text, type });
         setTimeout(() => setMessage(null), 3000);
       };
 
-      // --- 로그인 핸들러 (안전장치 포함) ---
       const handleLogin = async () => {
         if (!loginName.trim() || !loginPw.trim()) return alert("입력 필요");
         setLoading(true);
@@ -221,11 +216,8 @@
         localStorage.setItem('last_login_name', loginName.trim());
         localStorage.setItem('last_login_pw', loginPw.trim());
 
-        // 데이터를 합치는 안전한 함수
         const safeSetPlayer = (data) => {
-            // 불러온 데이터(data)에 없는 필드는 defaultPlayer 값으로 채움
             const mergedPlayer = { ...defaultPlayer, ...data };
-            // 특히 배열인 inventory가 없으면 빈 배열로 강제 설정
             if (!mergedPlayer.inventory) mergedPlayer.inventory = [];
             setPlayer(mergedPlayer);
             return mergedPlayer;
@@ -301,14 +293,24 @@
       };
 
       const pickQuestion = (isBoss = false, specificSubject = null) => {
-        const subject = isBoss ? ['국어','수학','사회','과학','상식'][Math.floor(Math.random()*5)] : (specificSubject || currentSubject);
-        const safeQuestions = questions.length > 0 ? questions : MOCK_QUESTIONS;
-        const filtered = safeQuestions.filter(q => q.subject === subject);
-        const q = filtered.length > 0 ? filtered[Math.floor(Math.random() * filtered.length)] : safeQuestions[Math.floor(Math.random() * safeQuestions.length)];
+        // [수정] 과목이 정확히 일치하지 않아도 선택되도록 전체 문제에서 필터링
+        const allQuestions = questions.length > 0 ? questions : MOCK_QUESTIONS;
+        let filtered = [];
+
+        if (isBoss) {
+            // 보스는 아무거나
+            filtered = allQuestions;
+        } else {
+            const target = specificSubject || currentSubject;
+            filtered = allQuestions.filter(q => q.subject === target);
+            // 만약 해당 과목 문제가 없으면 전체 문제에서 랜덤으로
+            if (filtered.length === 0) filtered = allQuestions;
+        }
+
+        const q = filtered.length > 0 ? filtered[Math.floor(Math.random() * filtered.length)] : allQuestions[0];
         setCurrentQuestion(q);
       };
 
-      // --- [수정] 아이템 드롭 및 보스 보상 함수 분리 ---
       const tryDropItem = (playerToUpdate) => {
         const roll = Math.random();
         let rarity = null;
@@ -336,12 +338,10 @@
         showMessage(`보스 보상: ${newItem.name} 획득!`, 'success');
       };
 
-      // --- [수정] 정답 처리 핸들러 (함수 호출 방식으로 변경) ---
       const handleAnswer = (idx) => {
         if (!monster || !currentQuestion || isRespawning) return;
         const isCorrect = idx === currentQuestion.answer;
         const newPlayer = { ...player };
-        // 깊은 복사 (배열)
         newPlayer.inventory = [...player.inventory];
         let logMsg = '';
 
@@ -352,7 +352,7 @@
             logMsg = `정답! (${newStreak}/10)`;
             if (newStreak >= 10) {
               logMsg = '보스 토벌 성공!';
-              dropBossReward(newPlayer); // 함수 호출
+              dropBossReward(newPlayer);
               setMonster(null);
               setView('lobby');
             } else {
@@ -365,8 +365,7 @@
             else { logMsg = `정답! ${dmg} 피해.`; }
 
             const newMonsterHp = monster.hp - dmg;
-            
-            tryDropItem(newPlayer); // 함수 호출
+            tryDropItem(newPlayer);
 
             if (newMonsterHp <= 0) {
               const expGain = 20 + (newPlayer.level * 10);
@@ -415,7 +414,6 @@
         const idx = player.inventory.findIndex(i => i.id === itemId);
         if (idx === -1) return;
         const newPlayer = { ...player };
-        // 배열 복사
         newPlayer.inventory = [...player.inventory];
         const item = newPlayer.inventory[idx];
         if (newPlayer.equippedWeapon?.id === itemId) newPlayer.equippedWeapon = null;
@@ -437,7 +435,7 @@
         if (item.enhanceLevel >= 10) return showMessage('최대 강화 상태', 'info');
         
         const newPlayer = { ...player };
-        newPlayer.inventory = [...player.inventory]; // 배열 복사
+        newPlayer.inventory = [...player.inventory];
         newPlayer.gold -= cost;
         const target = newPlayer.inventory.find(i => i.id === item.id);
         if (!target) return;
@@ -456,7 +454,7 @@
 
       // --- [복구됨] 안전한 인벤토리 렌더링 함수 ---
       const renderInventory = (isEnhance) => {
-         const inv = player.inventory || []; // 가방이 없으면 빈 가방으로 처리
+         const inv = player.inventory || [];
          return (
          <div className="space-y-3">
             {inv.length === 0 ? <div className="text-center text-gray-500 py-10">가방이 비었습니다.</div> :

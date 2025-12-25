@@ -18,17 +18,16 @@
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
   </style>
 
-  <!-- 2. vConsole (디버깅용) -->
+  <!-- 2. vConsole -->
   <script src="https://unpkg.com/vconsole@latest/dist/vconsole.min.js"></script>
-  <script>
-    try { var vConsole = new VConsole(); } catch(e) {}
-  </script>
+  <script>try { var vConsole = new VConsole(); } catch(e) {}</script>
 
-  <!-- 3. 필수 라이브러리 (PapaParse 제거됨) -->
+  <!-- 3. 라이브러리 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
+  
   <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
@@ -39,7 +38,7 @@
   <div id="loading-screen">
       <div class="loader"></div>
       <h2 style="color: #60a5fa;">로딩 중...</h2>
-      <div id="loading-msg" style="margin-top:10px; color:#94a3b8; font-size:12px;">구글 시트 데이터 가져오는 중...</div>
+      <div id="loading-msg" style="margin-top:10px; color:#94a3b8; font-size:12px;">데이터 연결 시도 중...</div>
   </div>
 
   <div id="root"></div>
@@ -48,20 +47,20 @@
     const { useState, useEffect, useRef } = React;
 
     // =================================================================================
-    // [필수] 여기에 구글 앱 스크립트 배포 주소(URL)를 정확히 넣어주세요!
+    // [필수] 구글 앱 스크립트(GAS) 웹 앱 URL을 아래 따옴표 안에 넣어주세요.
     // =================================================================================
-    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwvL_qsVVvaS45572soDLu8byVX70XA4FCKf8jPcXTz8pA6LJvdBWCZo4Y7zl07Dn45og/exec"; 
+    const GOOGLE_SCRIPT_URL = "여기에_URL을_붙여넣으세요"; 
     
-    // --- 게임 밸런스 ---
+    // --- 게임 밸런스 설정 ---
     const RARITY_RATES = { Myth: 0.0001, Legend: 0.01, Unique: 0.1, Rare: 0.2, Common: 0.3 };
     const RARITY_COLORS = { Common: 'text-gray-500', Rare: 'text-blue-500', Unique: 'text-purple-500', Legend: 'text-orange-500', Myth: 'text-red-600 font-bold animate-pulse' };
     const ITEM_RANGES = { Common: { min: 1, max: 10, price: 50 }, Rare: { min: 10, max: 20, price: 200 }, Unique: { min: 20, max: 30, price: 1000 }, Legend: { min: 30, max: 50, price: 5000 }, Myth: { min: 50, max: 100, price: 10000 } };
     const ENHANCE_RATES = [0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.1];
 
-    // 비상용 데모 데이터 (URL 연결 실패 시에만 표시됨)
+    // 비상용 데모 데이터 (연결 실패 시에만 사용)
     const MOCK_QUESTIONS = [
-      { subject: '시스템', question: "구글 시트 연결 실패. URL을 확인해주세요.", options: ['새로고침', '관리자 문의'], answer: 0 },
-      { subject: '수학', question: "1 + 1 = ?", options: ['1', '2', '3', '4'], answer: 1 },
+      { id: 9991, subject: '시스템', question: "데이터 연결에 실패했습니다.", options: ['새로고침', '관리자 문의'], answer: 0 },
+      { id: 9992, subject: '수학', question: "1 + 1 = ?", options: ['1', '2', '3', '4'], answer: 1 },
     ];
 
     // --- Firebase 설정 ---
@@ -86,6 +85,7 @@
     const auth = isFirebaseOk ? firebase.auth() : null;
     const appId = 'educational-rpg-gsheet';
 
+    // --- 아이콘 ---
     const Icons = {
       Sword: ({size=20, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"/><line x1="13" x2="19" y1="19" y2="13"/><line x1="16" x2="20" y1="16" y2="20"/><line x1="19" x2="21" y1="21" y2="19"/></svg>,
       Shield: ({size=20, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>,
@@ -109,7 +109,7 @@
         if (this.state.hasError) {
           return (
             <div className="p-8 text-center text-white bg-red-900 h-screen flex flex-col items-center justify-center">
-              <h1 className="text-2xl font-bold mb-4">오류가 발생했습니다.</h1>
+              <h1 className="text-2xl font-bold mb-4">앱 오류 발생</h1>
               <pre className="bg-black p-4 rounded text-left text-xs overflow-auto max-w-full">{this.state.error && this.state.error.toString()}</pre>
               <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="mt-6 bg-white text-black px-4 py-2 rounded font-bold">초기화 및 새로고침</button>
             </div>
@@ -121,12 +121,15 @@
 
     function App() {
       const [loading, setLoading] = useState(true);
+      const [errorMsg, setErrorMsg] = useState(null);
       const [view, setView] = useState('login');
       const [loginName, setLoginName] = useState('');
       const [loginPw, setLoginPw] = useState('');
       
+      // 초기 플레이어 상태
       const defaultPlayer = {
-        name: '모험가', level: 1, exp: 0, maxExp: 100, hp: 100, maxHp: 100, gold: 0, baseAtk: 10, equippedWeapon: null, inventory: []
+        name: '모험가', level: 1, exp: 0, maxExp: 100, hp: 100, maxHp: 100, gold: 0, baseAtk: 10, 
+        equippedWeapon: null, inventory: [], solved: [] 
       };
 
       const [player, setPlayer] = useState(defaultPlayer);
@@ -141,71 +144,72 @@
       const [accountId, setAccountId] = useState(null);
 
       useEffect(() => {
-        const hideLoading = () => {
-            const loader = document.getElementById('loading-screen');
-            if(loader) loader.style.display = 'none';
-        };
-
+        let isMounted = true;
         const savedName = localStorage.getItem('last_login_name');
-        const savedPw = localStorage.getItem('last_login_pw');
         if (savedName) setLoginName(savedName);
-        if (savedPw) setLoginPw(savedPw);
 
-        // 안전장치 타이머: 5초 내에 서버 응답 없으면 데모 데이터 사용
         const safetyTimer = setTimeout(() => {
-            if(loading) {
-                console.warn("Loading timeout: Using mock data");
-                // 이미 데이터가 있으면 덮어쓰지 않음
-                setQuestions(prev => prev.length > 0 ? prev : MOCK_QUESTIONS);
-                setLoading(false);
-                hideLoading();
+            if (isMounted) {
+                console.warn("Loading timeout");
+                setErrorMsg("서버 응답 시간이 초과되었습니다. (10초)");
             }
-        }, 5000); 
+        }, 10000);
 
-        // [핵심] 구글 앱 스크립트 데이터 로드
         if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL.includes("여기에")) {
-            console.warn("URL 미설정");
-            setQuestions(MOCK_QUESTIONS);
-            setLoading(false);
-            hideLoading();
-        } else {
-            fetch(GOOGLE_SCRIPT_URL)
-                .then(res => {
-                    if (!res.ok) throw new Error("Network response was not ok");
-                    return res.json();
-                })
-                .then(data => {
-                    clearTimeout(safetyTimer); // 성공 시 타이머 취소
-                    if (data && Array.isArray(data) && data.length > 0) {
-                        const formatted = data.map(item => ({
-                            subject: item.subject,
-                            question: item.question,
-                            options: item.options,
-                            // CSV/GAS 답변은 1부터 시작, 게임은 0부터 시작
-                            answer: parseInt(item.answer) - 1
-                        }));
-                        setQuestions(formatted);
-                        console.log("Loaded questions from GAS:", formatted.length);
-                    } else {
-                        console.warn("Data empty or invalid format");
-                        setQuestions(MOCK_QUESTIONS);
-                    }
-                    setLoading(false);
-                    hideLoading();
-                })
-                .catch(err => {
-                    clearTimeout(safetyTimer);
-                    console.error("Fetch Error:", err);
-                    setQuestions(MOCK_QUESTIONS);
-                    setLoading(false);
-                    hideLoading();
-                });
+             clearTimeout(safetyTimer);
+             if(isMounted) {
+                 setErrorMsg("URL 설정 오류: index.html 파일의 GOOGLE_SCRIPT_URL을 확인해주세요.");
+                 setQuestions(MOCK_QUESTIONS);
+                 setLoading(false);
+             }
+             return;
         }
+
+        fetch(GOOGLE_SCRIPT_URL)
+            .then(res => {
+                if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
+                return res.json();
+            })
+            .then(data => {
+                if(!isMounted) return;
+                clearTimeout(safetyTimer);
+                
+                if (Array.isArray(data) && data.length > 0) {
+                    const formatted = data.map((item, index) => ({
+                        id: index, 
+                        subject: item.subject,
+                        question: item.question,
+                        options: item.options,
+                        answer: parseInt(item.answer) - 1
+                    }));
+                    setQuestions(formatted);
+                    setErrorMsg(null);
+                } else {
+                    throw new Error("데이터가 비어있거나 형식이 잘못되었습니다.");
+                }
+                setLoading(false);
+            })
+            .catch(err => {
+                if(!isMounted) return;
+                clearTimeout(safetyTimer);
+                console.error("Fetch Error:", err);
+                setErrorMsg(`데이터 불러오기 실패: ${err.message}`);
+                setQuestions(MOCK_QUESTIONS);
+                setLoading(false);
+            });
 
         if(auth) auth.signInAnonymously().catch(console.warn);
 
-        return () => clearTimeout(safetyTimer);
+        return () => { isMounted = false; clearTimeout(safetyTimer); };
       }, []);
+
+      // 로딩 화면 제거
+      useEffect(() => {
+          if (!loading) {
+              const loader = document.getElementById('loading-screen');
+              if(loader) loader.style.display = 'none';
+          }
+      }, [loading]);
 
       const showMessage = (text, type) => {
         setMessage({ text, type });
@@ -218,25 +222,27 @@
         const customId = `${loginName.trim()}_${loginPw.trim()}`;
         setAccountId(customId);
         localStorage.setItem('last_login_name', loginName.trim());
-        localStorage.setItem('last_login_pw', loginPw.trim());
 
         const safeSetPlayer = (data) => {
             const mergedPlayer = { ...defaultPlayer, ...data };
             if (!mergedPlayer.inventory) mergedPlayer.inventory = [];
+            if (!mergedPlayer.solved) mergedPlayer.solved = []; 
             setPlayer(mergedPlayer);
             return mergedPlayer;
         };
 
-        if (!db) {
+        if (!db) { 
              const localData = localStorage.getItem('rpg_save_' + customId);
-             if (localData) {
-                 try { 
-                     const p = safeSetPlayer(JSON.parse(localData));
-                     showMessage(`(로컬) ${p.name}님 환영합니다!`, 'success');
-                 } catch(e) { safeSetPlayer({name: loginName.trim()}); }
-             } else {
-                 safeSetPlayer({name: loginName.trim()});
-             }
+             try { 
+                 if (localData) {
+                    const p = safeSetPlayer(JSON.parse(localData));
+                    showMessage(`(로컬) ${p.name}님 환영합니다!`, 'success');
+                 } else {
+                    safeSetPlayer({name: loginName.trim()});
+                    showMessage(`(로컬) 새로운 모험 시작!`, 'success');
+                 }
+             } catch(e) { safeSetPlayer({name: loginName.trim()}); }
+             
              setView('lobby');
              setLoading(false);
              return;
@@ -293,15 +299,44 @@
           const idx = Math.floor(Math.random() * types.length);
           setMonster({ name: `Lv.${level} ${types[idx]}`, level, hp, maxHp: hp, atk, image: emojis[idx] });
         }
-        pickQuestion(isBoss, specificSubject);
+        
+        // [중요] 몬스터 생성 시에도 최신 solved 상태를 기반으로 문제 선택
+        pickQuestion(isBoss, specificSubject, targetPlayer.solved);
       };
 
-      const pickQuestion = (isBoss = false, specificSubject = null) => {
-        const subject = isBoss ? ['국어','수학','사회','과학','상식'][Math.floor(Math.random()*5)] : (specificSubject || currentSubject);
+      // --- [핵심] 순차 출제 + 다 풀면 리셋 ---
+      const pickQuestion = (isBoss = false, specificSubject = null, solvedOverride = null) => {
+        const subject = isBoss ? '보스' : (specificSubject || currentSubject); // 보스전은 '보스' 과목 문제만
         const safeQuestions = questions.length > 0 ? questions : MOCK_QUESTIONS;
-        const filtered = safeQuestions.filter(q => q.subject === subject);
-        const q = filtered.length > 0 ? filtered[Math.floor(Math.random() * filtered.length)] : safeQuestions[Math.floor(Math.random() * safeQuestions.length)];
-        setCurrentQuestion(q);
+        
+        let subjectQuestions = safeQuestions.filter(q => q.subject === subject);
+        
+        // 보스 문제 없으면 랜덤 출제 (비상용)
+        if (isBoss && subjectQuestions.length === 0) subjectQuestions = safeQuestions;
+        if (subjectQuestions.length === 0) subjectQuestions = safeQuestions;
+
+        const solvedList = solvedOverride || player.solved || [];
+        
+        // [순차] 아직 안 푼 문제 중 가장 위에 있는(ID가 작은) 것 찾기
+        let nextQuestion = subjectQuestions.find(q => !solvedList.includes(q.id));
+
+        // 다 풀었으면 리셋
+        if (!nextQuestion) {
+            if (!isBoss) showMessage(`${subject} 과목 완전 정복! (초기화)`, 'info');
+            
+            // 해당 과목의 ID만 solved 목록에서 제거
+            const subjectIds = subjectQuestions.map(q => q.id);
+            const resetSolvedList = solvedList.filter(id => !subjectIds.includes(id));
+            
+            const newPlayer = { ...player, solved: resetSolvedList };
+            setPlayer(newPlayer);
+            savePlayerData(newPlayer);
+
+            // 다시 첫 번째 문제
+            nextQuestion = subjectQuestions[0];
+        }
+
+        setCurrentQuestion(nextQuestion || safeQuestions[0]);
       };
 
       const tryDropItem = (playerToUpdate) => {
@@ -335,10 +370,16 @@
         if (!monster || !currentQuestion || isRespawning) return;
         const isCorrect = idx === currentQuestion.answer;
         const newPlayer = { ...player };
-        newPlayer.inventory = [...player.inventory];
+        newPlayer.inventory = [...(player.inventory || [])];
+        newPlayer.solved = [...(player.solved || [])]; 
         let logMsg = '';
 
         if (isCorrect) {
+          // [중요] 정답 시 solved 목록에 추가
+          if (currentQuestion.id !== undefined && !newPlayer.solved.includes(currentQuestion.id)) {
+              newPlayer.solved.push(currentQuestion.id);
+          }
+
           if (view === 'boss') {
             const newStreak = bossStreak + 1;
             setBossStreak(newStreak);
@@ -349,7 +390,7 @@
               setMonster(null);
               setView('lobby');
             } else {
-              pickQuestion(true);
+              pickQuestion(true, null, newPlayer.solved); 
             }
           } else {
             const isCrit = Math.random() < 0.2;
@@ -378,10 +419,11 @@
               }
               setMonster(null);
               setIsRespawning(true);
-              setTimeout(() => spawnMonster(false, newPlayer), 1500);
+              setTimeout(() => spawnMonster(false, newPlayer, null), 1500);
             } else {
               setMonster({ ...monster, hp: newMonsterHp });
-              pickQuestion(false);
+              // 몬스터가 살아있어도 다음 문제로 (순차 출제)
+              pickQuestion(false, null, newPlayer.solved); 
             }
           }
         } else {
@@ -396,7 +438,8 @@
             setMonster(null);
             setView('lobby');
           } else {
-            pickQuestion(view === 'boss');
+            // 오답 시 문제 유지
+            pickQuestion(view === 'boss', null, newPlayer.solved);
           }
         }
         setBattleLog(prev => [logMsg, ...prev].slice(0, 5));
@@ -484,6 +527,12 @@
           <div className="flex flex-col h-screen items-center justify-center bg-slate-900 text-white p-4">
              <h1 className="text-4xl font-bold mb-8 text-blue-400 text-center">📘 POTATO RPG</h1>
              <div className="bg-slate-800 p-8 rounded-lg shadow-lg w-full max-w-md border border-slate-700">
+                {errorMsg && (
+                    <div className="bg-red-900/50 border border-red-500 text-red-200 p-3 rounded mb-4 text-xs">
+                        ⚠️ {errorMsg}
+                    </div>
+                )}
+                
                 <p className="text-center text-gray-300 mb-4 text-sm">이름과 비밀번호를 입력하면 언제든 이어할 수 있습니다.</p>
                 <div className="space-y-3">
                     <input type="text" placeholder="이름 (예: 지민)" className="w-full p-3 bg-slate-700 rounded border border-slate-600 text-white" onChange={(e) => setLoginName(e.target.value)} value={loginName} />
@@ -561,10 +610,19 @@
                     {currentQuestion && monster && (
                         <div className="bg-slate-800 p-6 rounded-xl border border-slate-600 shadow-xl">
                             <span className="text-xs bg-blue-900 text-blue-200 px-3 py-1 rounded-full font-bold mb-3 inline-block">{currentQuestion.subject}</span>
-                            <h3 className="text-xl font-bold mb-6 leading-relaxed">{currentQuestion.question}</h3>
+                            <div className="text-xl font-bold mb-6 leading-relaxed">
+                                {currentQuestion.question.startsWith('http') ? (
+                                    <img src={currentQuestion.question} alt="문제 이미지" className="max-w-full h-auto rounded" />
+                                ) : (
+                                    currentQuestion.question
+                                )}
+                            </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 {currentQuestion.options.map((opt, idx) => (
-                                    <button key={idx} onClick={() => handleAnswer(idx)} className="bg-slate-700 hover:bg-blue-600 p-4 rounded-lg text-left transition duration-200 border border-slate-600 hover:border-blue-400 font-medium"><span className="text-blue-300 mr-2 font-bold">{idx + 1}.</span> {opt}</button>
+                                    <button key={idx} onClick={() => handleAnswer(idx)} className="bg-slate-700 hover:bg-blue-600 p-4 rounded-lg text-left transition duration-200 border border-slate-600 hover:border-blue-400 font-medium">
+                                        <span className="text-blue-300 mr-2 font-bold">{idx + 1}.</span> 
+                                        {opt.startsWith('http') ? <img src={opt} alt={`보기 ${idx+1}`} className="inline-block max-h-20 rounded" /> : opt}
+                                    </button>
                                 ))}
                             </div>
                         </div>

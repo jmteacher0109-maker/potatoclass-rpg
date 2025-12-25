@@ -18,11 +18,13 @@
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
   </style>
 
-  <!-- 2. vConsole -->
+  <!-- 2. vConsole (디버깅용) -->
   <script src="https://unpkg.com/vconsole@latest/dist/vconsole.min.js"></script>
-  <script>try { var vConsole = new VConsole(); } catch(e) {}</script>
+  <script>
+    try { var vConsole = new VConsole(); } catch(e) {}
+  </script>
 
-  <!-- 3. 라이브러리 -->
+  <!-- 3. 필수 라이브러리 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
@@ -49,7 +51,7 @@
     // =================================================================================
     // [필수] 구글 앱 스크립트(GAS) 웹 앱 URL을 아래 따옴표 안에 넣어주세요.
     // =================================================================================
-    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwvL_qsVVvaS45572soDLu8byVX70XA4FCKf8jPcXTz8pA6LJvdBWCZo4Y7zl07Dn45og/exec"; 
+    const GOOGLE_SCRIPT_URL = "여기에_URL을_붙여넣으세요"; 
     
     // --- 게임 밸런스 설정 ---
     const RARITY_RATES = { Myth: 0.0001, Legend: 0.01, Unique: 0.1, Rare: 0.2, Common: 0.3 };
@@ -61,6 +63,7 @@
     const MOCK_QUESTIONS = [
       { id: 9991, subject: '시스템', question: "데이터 연결에 실패했습니다.", options: ['새로고침', '관리자 문의'], answer: 0 },
       { id: 9992, subject: '수학', question: "1 + 1 = ?", options: ['1', '2', '3', '4'], answer: 1 },
+      { id: 9993, subject: '보스', question: "보스 전용 문제 테스트: 사과의 색깔은?", options: ['빨강', '파랑'], answer: 0 },
     ];
 
     // --- Firebase 설정 ---
@@ -126,7 +129,6 @@
       const [loginName, setLoginName] = useState('');
       const [loginPw, setLoginPw] = useState('');
       
-      // 초기 플레이어 상태
       const defaultPlayer = {
         name: '모험가', level: 1, exp: 0, maxExp: 100, hp: 100, maxHp: 100, gold: 0, baseAtk: 10, 
         equippedWeapon: null, inventory: [], solved: [] 
@@ -286,6 +288,12 @@
       };
 
       const spawnMonster = (isBoss = false, targetPlayer = player, specificSubject = null) => {
+        // [추가] 보스 입장 레벨 제한 체크
+        if (isBoss && targetPlayer.level < 10) {
+            showMessage("보스 레이드는 레벨 10부터 입장 가능합니다!", "error");
+            return;
+        }
+
         setIsRespawning(false);
         if (isBoss) {
           setMonster({ name: '혼돈의 지배자 (BOSS)', level: 99, hp: 10000, maxHp: 10000, atk: 999, image: '🐲' });
@@ -306,13 +314,21 @@
 
       // --- [핵심] 순차 출제 + 다 풀면 리셋 ---
       const pickQuestion = (isBoss = false, specificSubject = null, solvedOverride = null) => {
-        const subject = isBoss ? '보스' : (specificSubject || currentSubject); // 보스전은 '보스' 과목 문제만
+        // 보스전은 오직 '보스' 과목 문제만, 아니면 선택된 과목
+        const subject = isBoss ? '보스' : (specificSubject || currentSubject);
         const safeQuestions = questions.length > 0 ? questions : MOCK_QUESTIONS;
         
         let subjectQuestions = safeQuestions.filter(q => q.subject === subject);
         
         // 보스 문제 없으면 랜덤 출제 (비상용)
-        if (isBoss && subjectQuestions.length === 0) subjectQuestions = safeQuestions;
+        if (isBoss && subjectQuestions.length === 0) {
+            if(safeQuestions.some(q => q.subject === '보스')) {
+                // 보스 문제가 있는데 로드 안된 경우 제외
+            } else {
+                // 진짜 보스 문제가 하나도 없으면 비상용으로 전체에서
+                 subjectQuestions = safeQuestions;
+            }
+        }
         if (subjectQuestions.length === 0) subjectQuestions = safeQuestions;
 
         const solvedList = solvedOverride || player.solved || [];
@@ -375,7 +391,7 @@
         let logMsg = '';
 
         if (isCorrect) {
-          // [중요] 정답 시 solved 목록에 추가
+          // [중요] 정답 시 푼 문제 목록에 ID 추가
           if (currentQuestion.id !== undefined && !newPlayer.solved.includes(currentQuestion.id)) {
               newPlayer.solved.push(currentQuestion.id);
           }
@@ -667,4 +683,3 @@
   </script>
 </body>
 </html>
-

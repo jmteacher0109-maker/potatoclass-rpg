@@ -47,7 +47,7 @@
     const { useState, useEffect, useRef } = React;
 
     // =================================================================================
-    // [필수] 구글 앱 스크립트(GAS) 웹 앱 URL을 아래 따옴표 안에 넣어주세요.
+    // [수정 완료] 구글 앱 스크립트(GAS) 웹 앱 URL 적용
     // =================================================================================
     const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwvL_qsVVvaS45572soDLu8byVX70XA4FCKf8jPcXTz8pA6LJvdBWCZo4Y7zl07Dn45og/exec"; 
     
@@ -340,10 +340,11 @@
         let mName, mHp, mAtk, mImg;
 
         if (isBoss) {
-            mName = '혼돈의 지배자 (BOSS)';
+            // [수정 완료] 보스 몬스터 아이콘을 '감자(🥔)'로 변경
+            mName = '대왕 감자 (BOSS)';
             mHp = 10000;
             mAtk = 999;
-            mImg = '🐲';
+            mImg = '🥔';
             setBossStreak(0);
         } else if (specificSubject === 'LEGEND') {
             const level = targetPlayer.level;
@@ -387,10 +388,8 @@
 
         const solvedList = solvedOverride || player.solved || [];
         
-        // 안 푼 문제 목록 생성 (랜덤 선택을 위해)
         let unsolvedQuestions = subjectQuestions.filter(q => !solvedList.includes(q.id));
 
-        // 다 풀었으면 리셋
         if (unsolvedQuestions.length === 0) {
             if (!isBoss && view !== 'legend') showMessage(`${subject} 과목 문제 리셋! 다시 시작합니다.`, 'info');
             
@@ -401,10 +400,9 @@
             setPlayer(newPlayer);
             savePlayerData(newPlayer);
 
-            unsolvedQuestions = subjectQuestions; // 전체 문제로 다시 설정
+            unsolvedQuestions = subjectQuestions; 
         }
 
-        // [핵심] 랜덤 선택
         const q = unsolvedQuestions.length > 0 
             ? unsolvedQuestions[Math.floor(Math.random() * unsolvedQuestions.length)] 
             : safeQuestions[0];
@@ -819,55 +817,3 @@
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 {currentQuestion.options.map((opt, idx) => (
-                                    <button key={idx} onClick={() => handleAnswer(idx)} className="bg-slate-700 hover:bg-blue-600 p-4 rounded-lg text-left transition duration-200 border border-slate-600 hover:border-blue-400 font-medium">
-                                        <span className="text-blue-300 mr-2 font-bold">{idx + 1}.</span> 
-                                        {String(opt).startsWith('http') ? <img src={opt} alt={`보기 ${idx+1}`} className="inline-block max-h-20 rounded" /> : opt}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                    <button onClick={() => { setView('lobby'); setMonster(null); }} className="mt-6 text-gray-500 hover:text-white flex items-center justify-center gap-2 py-2 w-full md:w-auto mx-auto"><Icons.LogOut size={16}/> 도망가기</button>
-                 </div>
-               )}
-
-               {(view === 'inventory' || view === 'enhance' || view === 'combine') && (
-                   <div className="p-4 h-full overflow-y-auto md:hidden">
-                       <h2 className="text-xl font-bold mb-4 flex items-center gap-2 pb-2 border-b border-slate-700">
-                           {view === 'inventory' ? '인벤토리' : view === 'enhance' ? '대장간' : '조합소'}
-                       </h2>
-                       {renderInventory(view)}
-                   </div>
-               )}
-            </div>
-
-            <div className="hidden md:flex w-80 bg-slate-800 border-l border-slate-700 flex-col shrink-0">
-               <div className="flex text-sm font-bold border-b border-slate-700">
-                  <button className={`flex-1 p-3 flex items-center justify-center gap-2 ${view === 'enhance' ? 'bg-slate-700 text-gray-400' : 'bg-slate-800 text-blue-400'}`} onClick={() => view === 'enhance' ? setView('lobby') : null}><Icons.Sword size={16}/> 장비</button>
-                  <button className={`flex-1 p-3 flex items-center justify-center gap-2 ${view === 'enhance' ? 'bg-slate-800 text-yellow-400' : 'bg-slate-700 text-gray-400'}`} onClick={() => setView('enhance')}><Icons.Hammer size={16}/> 강화</button>
-                  <button className={`flex-1 p-3 flex items-center justify-center gap-2 ${view === 'combine' ? 'bg-slate-800 text-purple-400' : 'bg-slate-700 text-gray-400'}`} onClick={() => setView('combine')}><Icons.Combine size={16}/> 조합</button>
-               </div>
-               <div className="flex-1 overflow-y-auto p-3">{renderInventory(view)}</div>
-            </div>
-          </div>
-
-          <div className="md:hidden bg-slate-800 p-2 flex justify-around border-t border-slate-700 z-10 shrink-0">
-             <button onClick={() => setView('lobby')} className={`p-2 rounded flex flex-col items-center gap-1 ${view === 'lobby' ? 'text-blue-400' : 'text-gray-400'}`}><Icons.Menu size={20}/><span className="text-[10px]">로비</span></button>
-             <button onClick={() => setView('inventory')} className={`p-2 rounded flex flex-col items-center gap-1 ${view === 'inventory' ? 'text-blue-400' : 'text-gray-400'}`}><Icons.Sword size={20}/><span className="text-[10px]">가방</span></button>
-             <button onClick={() => setView('enhance')} className={`p-2 rounded flex flex-col items-center gap-1 ${view === 'enhance' ? 'text-blue-400' : 'text-gray-400'}`}><Icons.Hammer size={20}/><span className="text-[10px]">강화</span></button>
-             <button onClick={() => setView('combine')} className={`p-2 rounded flex flex-col items-center gap-1 ${view === 'combine' ? 'text-blue-400' : 'text-gray-400'}`}><Icons.Combine size={20}/><span className="text-[10px]">조합</span></button>
-          </div>
-        </div>
-      );
-    }
-
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    // ErrorBoundary로 App 감싸기
-    root.render(
-      <ErrorBoundary>
-        <App />
-      </ErrorBoundary>
-    );
-  </script>
-</body>
-</html>

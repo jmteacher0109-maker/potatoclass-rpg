@@ -828,14 +828,34 @@
             </div>
 
             <div className="hidden md:flex w-80 bg-slate-800 border-l border-slate-700 flex-col shrink-0">
-               <div className="flex text-sm font-bold border-b border-slate-700">
-                  <button className={`flex-1 p-3 flex items-center justify-center gap-2 ${view === 'enhance' ? 'bg-slate-700 text-gray-400' : 'bg-slate-800 text-blue-400'}`} onClick={() => view === 'enhance' ? setView('lobby') : null}><Icons.Sword size={16}/> 장비</button>
-                  <button className={`flex-1 p-3 flex items-center justify-center gap-2 ${view === 'enhance' ? 'bg-slate-800 text-yellow-400' : 'bg-slate-700 text-gray-400'}`} onClick={() => setView('enhance')}><Icons.Hammer size={16}/> 강화</button>
-                  <button className={`flex-1 p-3 flex items-center justify-center gap-2 ${view === 'combine' ? 'bg-slate-800 text-purple-400' : 'bg-slate-700 text-gray-400'}`} onClick={() => setView('combine')}><Icons.Combine size={16}/> 조합</button>
-               </div>
-               <div className="flex-1 overflow-y-auto p-3">{renderInventory(view)}</div>
-            </div>
-          </div>
+  <div className="flex text-sm font-bold border-b border-slate-700">
+    <button
+      className={`flex-1 p-3 flex items-center justify-center gap-2 ${
+        view === 'inventory' ? 'bg-slate-700 text-blue-400' : 'bg-slate-800 text-gray-400'
+      }`}
+      onClick={() => setView('inventory')}
+    >
+      <Icons.Sword size={16}/> 장비
+    </button>
+
+    <button
+      className={`flex-1 p-3 flex items-center justify-center gap-2 ${
+        view === 'enhance' ? 'bg-slate-700 text-yellow-400' : 'bg-slate-800 text-gray-400'
+      }`}
+      onClick={() => setView('enhance')}
+    >
+      <Icons.Hammer size={16}/> 강화
+    </button>
+
+    <button
+      className={`flex-1 p-3 flex items-center justify-center gap-2 ${
+        view === 'combine' ? 'bg-slate-700 text-purple-400' : 'bg-slate-800 text-gray-400'
+      }`}
+      onClick={() => setView('combine')}
+    >
+      <Icons.Combine size={16}/> 조합
+    </button>
+  </div>
 
           <div className="md:hidden bg-slate-800 p-2 flex justify-around border-t border-slate-700 z-10 shrink-0">
              <button onClick={() => setView('lobby')} className={`p-2 rounded flex flex-col items-center gap-1 ${view === 'lobby' ? 'text-blue-400' : 'text-gray-400'}`}><Icons.Menu size={20}/><span className="text-[10px]">로비</span></button>
@@ -857,3 +877,4 @@
   </script>
 </body>
 </html>
+

@@ -597,7 +597,14 @@
                             <span className="font-bold text-xl">{subj}의 숲</span>
                         </button>
                     ))}
-                    <button onClick={() => { setView('boss'); spawnMonster(true); }} className="col-span-1 md:col-span-2 bg-gradient-to-r from-red-900/80 to-slate-900 p-6 rounded-xl border border-red-600 flex flex-row items-center justify-center gap-4 transition mt-4 hover:brightness-110">
+                    <button onClick={() => { 
+                        if (player.level < 10) {
+                            showMessage("🚫 보스 레이드는 레벨 10부터 입장 가능합니다!", "error");
+                            return;
+                        }
+                        setView('boss'); 
+                        spawnMonster(true); 
+                    }} className="col-span-1 md:col-span-2 bg-gradient-to-r from-red-900/80 to-slate-900 p-6 rounded-xl border border-red-600 flex flex-row items-center justify-center gap-4 transition mt-4 hover:brightness-110">
                         <Icons.Skull size={48} className="text-red-500 animate-pulse" />
                         <div className="text-left"><span className="font-bold text-2xl text-red-200 block">보스 레이드</span><span className="text-sm text-red-300">랜덤 과목 10연속 정답 도전!</span></div>
                     </button>
@@ -683,4 +690,3 @@
   </script>
 </body>
 </html>
-

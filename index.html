@@ -18,11 +18,9 @@
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
   </style>
 
-  <!-- 2. vConsole (디버깅용) -->
+  <!-- 2. vConsole -->
   <script src="https://unpkg.com/vconsole@latest/dist/vconsole.min.js"></script>
-  <script>
-    try { var vConsole = new VConsole(); } catch(e) {}
-  </script>
+  <script>try { var vConsole = new VConsole(); } catch(e) {}</script>
 
   <!-- 3. 필수 라이브러리 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
@@ -129,6 +127,7 @@
       const [loginName, setLoginName] = useState('');
       const [loginPw, setLoginPw] = useState('');
       
+      // 초기 플레이어 상태
       const defaultPlayer = {
         name: '모험가', level: 1, exp: 0, maxExp: 100, hp: 100, maxHp: 100, gold: 0, baseAtk: 10, 
         equippedWeapon: null, inventory: [], solved: [] 
@@ -634,7 +633,7 @@
                         <div className="bg-slate-800 p-6 rounded-xl border border-slate-600 shadow-xl">
                             <span className="text-xs bg-blue-900 text-blue-200 px-3 py-1 rounded-full font-bold mb-3 inline-block">{currentQuestion.subject}</span>
                             <div className="text-xl font-bold mb-6 leading-relaxed">
-                                {currentQuestion.question.startsWith('http') ? (
+                                {String(currentQuestion.question).startsWith('http') ? (
                                     <img src={currentQuestion.question} alt="문제 이미지" className="max-w-full h-auto rounded" />
                                 ) : (
                                     currentQuestion.question
@@ -644,7 +643,7 @@
                                 {currentQuestion.options.map((opt, idx) => (
                                     <button key={idx} onClick={() => handleAnswer(idx)} className="bg-slate-700 hover:bg-blue-600 p-4 rounded-lg text-left transition duration-200 border border-slate-600 hover:border-blue-400 font-medium">
                                         <span className="text-blue-300 mr-2 font-bold">{idx + 1}.</span> 
-                                        {opt.startsWith('http') ? <img src={opt} alt={`보기 ${idx+1}`} className="inline-block max-h-20 rounded" /> : opt}
+                                        {String(opt).startsWith('http') ? <img src={opt} alt={`보기 ${idx+1}`} className="inline-block max-h-20 rounded" /> : opt}
                                     </button>
                                 ))}
                             </div>

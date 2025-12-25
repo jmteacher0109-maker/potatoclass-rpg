@@ -47,7 +47,7 @@
     const { useState, useEffect, useRef } = React;
 
     // =================================================================================
-    // [수정 완료] 구글 앱 스크립트(GAS) 웹 앱 URL 적용
+    // [필수] 구글 앱 스크립트(GAS) 웹 앱 URL을 아래 따옴표 안에 넣어주세요.
     // =================================================================================
     const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwvL_qsVVvaS45572soDLu8byVX70XA4FCKf8jPcXTz8pA6LJvdBWCZo4Y7zl07Dn45og/exec"; 
     
@@ -340,7 +340,6 @@
         let mName, mHp, mAtk, mImg;
 
         if (isBoss) {
-            // [수정 완료] 보스 몬스터 아이콘을 '감자(🥔)'로 변경
             mName = '대왕 감자 (BOSS)';
             mHp = 10000;
             mAtk = 999;
@@ -429,13 +428,10 @@
         let rarity = null;
         
         if (view === 'legend') {
-            // 2. 보스전 아이템 드랍 확률 (전설의 던전)
-            // 신화: 5%, 전설: 30%, 유니크: 65%
             if (roll < 0.05) rarity = 'Myth';
             else if (roll < 0.05 + 0.30) rarity = 'Legend';
-            else rarity = 'Unique'; // 나머지는 유니크
+            else rarity = 'Unique'; 
         } else {
-            // 일반 필드 확률 (전설 0.5%로 수정)
             if (roll < RARITY_RATES.Myth) rarity = 'Myth';
             else if (roll < RARITY_RATES.Legend + RARITY_RATES.Myth) rarity = 'Legend';
             else if (roll < RARITY_RATES.Unique + RARITY_RATES.Legend) rarity = 'Unique';
@@ -453,7 +449,6 @@
       };
 
       const dropBossReward = (playerToUpdate) => {
-         // 보스 클리어 시 보상 (전설의 던전과 로직 동일하게 적용)
          tryDropItem(playerToUpdate);
       };
 
@@ -544,7 +539,6 @@
         const idx = player.inventory.findIndex(i => i.id === itemId);
         if (idx === -1) return;
         
-        // 4. 장비 보호 기능 (보호된 아이템은 판매 불가)
         if (player.inventory[idx].protected) {
             showMessage("보호된 아이템은 판매할 수 없습니다.", "error");
             return;
@@ -599,10 +593,7 @@
         savePlayerData(newPlayer);
       };
 
-      // 3. 아이템 조합 기능
       const combineItems = (targetRarity) => {
-         // targetRarity: 만들고 싶은 상위 등급 (예: 'Rare')
-         // sourceRarity: 재료로 쓸 하위 등급 (예: 'Common')
          const rarityOrder = ['Common', 'Rare', 'Unique', 'Legend', 'Myth'];
          const targetIdx = rarityOrder.indexOf(targetRarity);
          if (targetIdx <= 0) return;
@@ -618,7 +609,6 @@
          const newPlayer = { ...player };
          newPlayer.inventory = [...player.inventory];
          
-         // 재료 10개 삭제
          let count = 0;
          for (let i = newPlayer.inventory.length - 1; i >= 0; i--) {
              if (newPlayer.inventory[i].rarity === sourceRarity && !newPlayer.inventory[i].protected && player.equippedWeapon?.id !== newPlayer.inventory[i].id) {
@@ -628,7 +618,6 @@
              }
          }
 
-         // 상위 아이템 생성
          const range = ITEM_RANGES[targetRarity];
          const atk = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
          const newItem = { id: Date.now().toString(), name: `조합된 ${targetRarity} 검`, rarity: targetRarity, atk, value: range.price, enhanceLevel: 0, type: 'weapon', protected: false };
@@ -642,7 +631,6 @@
          const inv = player.inventory || [];
          const frags = player.fragments || {};
          
-         // 3. 조합 탭 UI
          if (tab === 'combine') {
              return (
                  <div className="space-y-3 p-2">
@@ -685,10 +673,9 @@
             inv.map(item => (
                 <div key={item.id} 
                     className={`bg-slate-700/50 p-2 rounded flex justify-between items-center border ${item.protected ? 'border-yellow-500' : 'border-slate-600'}`}
-                    // 4. 장비 보호 기능 (롱터치 구현을 위한 이벤트)
                     onContextMenu={(e) => { e.preventDefault(); toggleProtect(item.id); }}
                 >
-                    <div onClick={() => toggleProtect(item.id)} className="cursor-pointer"> {/* 클릭으로도 보호 토글 가능하게 UX 개선 */}
+                    <div onClick={() => toggleProtect(item.id)} className="cursor-pointer">
                         <div className={`font-bold text-sm ${RARITY_COLORS[item.rarity]} flex items-center gap-1`}>
                             {item.protected && <Icons.Lock size={12} className="text-yellow-400"/>}
                             {item.name} {item.enhanceLevel > 0 && `+${item.enhanceLevel}`}
@@ -697,6 +684,7 @@
                         <div className="text-[10px] text-gray-400">ATK {item.atk} | {item.value}G</div>
                     </div>
                     <div className="flex gap-1">
+                        {/* 탭에 따라 버튼 다르게 표시: inventory -> 판매, enhance -> 강화 */}
                         {tab === 'inventory' ? (
                             <>
                             <button onClick={() => equipItem(item)} className="bg-blue-700 px-2 py-1 rounded text-[10px] hover:bg-blue-600 text-white">장착</button>
@@ -817,3 +805,55 @@
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 {currentQuestion.options.map((opt, idx) => (
+                                    <button key={idx} onClick={() => handleAnswer(idx)} className="bg-slate-700 hover:bg-blue-600 p-4 rounded-lg text-left transition duration-200 border border-slate-600 hover:border-blue-400 font-medium">
+                                        <span className="text-blue-300 mr-2 font-bold">{idx + 1}.</span> 
+                                        {String(opt).startsWith('http') ? <img src={opt} alt={`보기 ${idx+1}`} className="inline-block max-h-20 rounded" /> : opt}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                    <button onClick={() => { setView('lobby'); setMonster(null); }} className="mt-6 text-gray-500 hover:text-white flex items-center justify-center gap-2 py-2 w-full md:w-auto mx-auto"><Icons.LogOut size={16}/> 도망가기</button>
+                 </div>
+               )}
+
+               {(view === 'inventory' || view === 'enhance' || view === 'combine') && (
+                   <div className="p-4 h-full overflow-y-auto md:hidden">
+                       <h2 className="text-xl font-bold mb-4 flex items-center gap-2 pb-2 border-b border-slate-700">
+                           {view === 'inventory' ? '인벤토리' : view === 'enhance' ? '대장간' : '조합소'}
+                       </h2>
+                       {renderInventory(view)}
+                   </div>
+               )}
+            </div>
+
+            <div className="hidden md:flex w-80 bg-slate-800 border-l border-slate-700 flex-col shrink-0">
+               <div className="flex text-sm font-bold border-b border-slate-700">
+                  <button className={`flex-1 p-3 flex items-center justify-center gap-2 ${view === 'enhance' ? 'bg-slate-700 text-gray-400' : 'bg-slate-800 text-blue-400'}`} onClick={() => view === 'enhance' ? setView('lobby') : null}><Icons.Sword size={16}/> 장비</button>
+                  <button className={`flex-1 p-3 flex items-center justify-center gap-2 ${view === 'enhance' ? 'bg-slate-800 text-yellow-400' : 'bg-slate-700 text-gray-400'}`} onClick={() => setView('enhance')}><Icons.Hammer size={16}/> 강화</button>
+                  <button className={`flex-1 p-3 flex items-center justify-center gap-2 ${view === 'combine' ? 'bg-slate-800 text-purple-400' : 'bg-slate-700 text-gray-400'}`} onClick={() => setView('combine')}><Icons.Combine size={16}/> 조합</button>
+               </div>
+               <div className="flex-1 overflow-y-auto p-3">{renderInventory(view)}</div>
+            </div>
+          </div>
+
+          <div className="md:hidden bg-slate-800 p-2 flex justify-around border-t border-slate-700 z-10 shrink-0">
+             <button onClick={() => setView('lobby')} className={`p-2 rounded flex flex-col items-center gap-1 ${view === 'lobby' ? 'text-blue-400' : 'text-gray-400'}`}><Icons.Menu size={20}/><span className="text-[10px]">로비</span></button>
+             <button onClick={() => setView('inventory')} className={`p-2 rounded flex flex-col items-center gap-1 ${view === 'inventory' ? 'text-blue-400' : 'text-gray-400'}`}><Icons.Sword size={20}/><span className="text-[10px]">가방</span></button>
+             <button onClick={() => setView('enhance')} className={`p-2 rounded flex flex-col items-center gap-1 ${view === 'enhance' ? 'text-blue-400' : 'text-gray-400'}`}><Icons.Hammer size={20}/><span className="text-[10px]">강화</span></button>
+             <button onClick={() => setView('combine')} className={`p-2 rounded flex flex-col items-center gap-1 ${view === 'combine' ? 'text-blue-400' : 'text-gray-400'}`}><Icons.Combine size={20}/><span className="text-[10px]">조합</span></button>
+          </div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    // ErrorBoundary로 App 감싸기
+    root.render(
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>
+    );
+  </script>
+</body>
+</html>

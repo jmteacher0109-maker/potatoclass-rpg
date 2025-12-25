@@ -51,11 +51,10 @@
     // =================================================================================
     const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwvL_qsVVvaS45572soDLu8byVX70XA4FCKf8jPcXTz8pA6LJvdBWCZo4Y7zl07Dn45og/exec"; 
     
-    // --- [수정됨] 게임 밸런스 설정 ---
-    const RARITY_RATES = { Myth: 0.0001, Legend: 0.01, Unique: 0.1, Rare: 0.2, Common: 0.3 };
+    // --- 게임 밸런스 설정 ---
+    // 1. 아이템 획득 확률 (일반 필드)
+    const RARITY_RATES = { Myth: 0.0001, Legend: 0.005, Unique: 0.1, Rare: 0.2, Common: 0.3 };
     const RARITY_COLORS = { Common: 'text-gray-500', Rare: 'text-blue-500', Unique: 'text-purple-500', Legend: 'text-orange-500', Myth: 'text-red-600 font-bold animate-pulse' };
-    
-    // 1. 기본 공격력 범위 및 2. 판매 가격 수정
     const ITEM_RANGES = { 
         Common: { min: 1, max: 10, price: 100 }, 
         Rare: { min: 10, max: 50, price: 300 }, 
@@ -63,11 +62,11 @@
         Legend: { min: 100, max: 500, price: 10000 }, 
         Myth: { min: 500, max: 1000, price: 50000 } 
     };
-    
     const ENHANCE_RATES = [0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.1];
-    const FRAGMENT_DROP_RATE = 0.3; // 일반 필드 조각 확률 30%
+    const FRAGMENT_DROP_RATE = 0.3; 
     const BOSS_ENTRY_COST = 10; 
 
+    // 비상용 데모 데이터
     const MOCK_QUESTIONS = [
       { id: 9991, subject: '시스템', question: "데이터 연결에 실패했습니다.", options: ['새로고침', '관리자 문의'], answer: 0 },
       { id: 9992, subject: '수학', question: "1 + 1 = ?", options: ['1', '2', '3', '4'], answer: 1 },
@@ -109,6 +108,8 @@
       RefreshCw: ({size=20, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>,
       Puzzle: ({size=20, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M19.439 15.424a1 1 0 0 0-1.045 1.576 4.966 4.966 0 0 0-1.894 1.894 1 1 0 0 0 1.576 1.045l-3.237 3.237a.998.998 0 0 0 0 1.414l5.656-5.656a.998.998 0 0 0 0-1.414l-3.237-3.237a1 1 0 0 0 1.576-1.045 4.966 4.966 0 0 0-1.894-1.894 1 1 0 0 0-1.045 1.576l-3.237-3.237a.998.998 0 0 0-1.414 0l-5.656 5.656a.998.998 0 0 0 0 1.414l3.237 3.237z"/><path d="M14.5 9.5 9.5 14.5"/></svg>,
       Castle: ({size=20, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M4 4v16"/><path d="M20 4v16"/><path d="M12 4v16"/><path d="M2 8h20"/><path d="M8 8v4"/><path d="M16 8v4"/><path d="M8 16h8"/><path d="M8 12h8"/><path d="M8 4l2-2 2 2"/><path d="M14 4l2-2 2 2"/></svg>,
+      Lock: ({size=20, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>,
+      Combine: ({size=20, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M14 4c0-1.1.9-2 2-2s2 .9 2 2 0 1.1-.9 2-2 2-2-.9-2-2z"/><path d="M20 10c0-1.1.9-2 2-2s2 .9 2 2 0 1.1-.9 2-2 2-2-.9-2-2z"/><path d="M20 16c0-1.1.9-2 2-2s2 .9 2 2 0 1.1-.9 2-2 2-2-.9-2-2z"/><path d="M14 22c0-1.1.9-2 2-2s2 .9 2 2 0 1.1-.9 2-2 2-2-.9-2-2z"/><path d="M7 12c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/><line x1="7" y1="12" x2="14" y2="4"/><line x1="7" y1="14" x2="14" y2="22"/><line x1="9" y1="14" x2="20" y2="10"/><line x1="9" y1="14" x2="20" y2="16"/></svg>,
     };
 
     class ErrorBoundary extends React.Component {
@@ -151,6 +152,9 @@
       const [questions, setQuestions] = useState([]);
       const [message, setMessage] = useState(null);
       const [accountId, setAccountId] = useState(null);
+      
+      // 장비 보호를 위한 롱터치 타이머
+      const longPressTimer = useRef(null);
 
       useEffect(() => {
         let isMounted = true;
@@ -408,7 +412,6 @@
       const tryDropFragment = (playerToUpdate, subject) => {
          if (subject === '보스' || subject === '상식') return; 
          
-         // [수정] 전설 던전에서도 조각 드롭 (확률 50%)
          let rate = FRAGMENT_DROP_RATE;
          if (view === 'legend') rate = 0.5;
 
@@ -425,15 +428,13 @@
         let rarity = null;
         
         if (view === 'legend') {
-            // [수정] 3. 전설의 던전 아이템 드롭 확률
-            // 신화: 1%, 전설: 5%, 유니크: 20%, 희귀: 30%, 꽝: 나머지
-            if (roll < 0.01) rarity = 'Myth';
-            else if (roll < 0.01 + 0.05) rarity = 'Legend';
-            else if (roll < 0.01 + 0.05 + 0.20) rarity = 'Unique';
-            else if (roll < 0.01 + 0.05 + 0.20 + 0.30) rarity = 'Rare';
-            // 나머지는 null (꽝, 일반 아이템 없음)
+            // 2. 보스전 아이템 드랍 확률 (전설의 던전)
+            // 신화: 5%, 전설: 30%, 유니크: 65%
+            if (roll < 0.05) rarity = 'Myth';
+            else if (roll < 0.05 + 0.30) rarity = 'Legend';
+            else rarity = 'Unique'; // 나머지는 유니크
         } else {
-            // 일반 필드 확률
+            // 일반 필드 확률 (전설 0.5%로 수정)
             if (roll < RARITY_RATES.Myth) rarity = 'Myth';
             else if (roll < RARITY_RATES.Legend + RARITY_RATES.Myth) rarity = 'Legend';
             else if (roll < RARITY_RATES.Unique + RARITY_RATES.Legend) rarity = 'Unique';
@@ -444,19 +445,15 @@
         if (rarity) {
           const range = ITEM_RANGES[rarity];
           const atk = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
-          const newItem = { id: Date.now() + Math.random().toString(), name: `${rarity} 검`, rarity, atk, value: range.price, enhanceLevel: 0, type: 'weapon' };
+          const newItem = { id: Date.now() + Math.random().toString(), name: `${rarity} 검`, rarity, atk, value: range.price, enhanceLevel: 0, type: 'weapon', protected: false };
           playerToUpdate.inventory.push(newItem);
           showMessage(`[${rarity}] 아이템 획득!`, 'success');
         }
       };
 
       const dropBossReward = (playerToUpdate) => {
-        const rarity = Math.random() < 0.1 ? 'Myth' : 'Legend';
-        const range = ITEM_RANGES[rarity];
-        const atk = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
-        const newItem = { id: Date.now().toString(), name: `보스 슬레이어 (${rarity})`, rarity, atk, value: range.price * 2, enhanceLevel: 0, type: 'weapon' };
-        playerToUpdate.inventory.push(newItem);
-        showMessage(`보스 보상: ${newItem.name} 획득!`, 'success');
+         // 보스 클리어 시 보상 (전설의 던전과 로직 동일하게 적용)
+         tryDropItem(playerToUpdate);
       };
 
       const handleAnswer = (idx) => {
@@ -498,10 +495,9 @@
             tryDropFragment(newPlayer, currentQuestion.subject);
 
             if (newMonsterHp <= 0) {
-              // [수정] 4. 골드 획득량 3배 (전설 던전도 기본 3배 적용)
               const rewardMultiplier = view === 'legend' ? 3 : 1;
               const expGain = (20 + (newPlayer.level * 10)) * rewardMultiplier;
-              const goldGain = (Math.floor(Math.random() * 50) + 10) * 3; // 기본 골드 3배 상향
+              const goldGain = (Math.floor(Math.random() * 50) + 10) * 3; 
               
               newPlayer.exp += expGain;
               newPlayer.gold += goldGain;
@@ -546,6 +542,13 @@
       const sellItem = (itemId) => {
         const idx = player.inventory.findIndex(i => i.id === itemId);
         if (idx === -1) return;
+        
+        // 4. 장비 보호 기능 (보호된 아이템은 판매 불가)
+        if (player.inventory[idx].protected) {
+            showMessage("보호된 아이템은 판매할 수 없습니다.", "error");
+            return;
+        }
+
         const newPlayer = { ...player };
         newPlayer.inventory = [...player.inventory];
         const item = newPlayer.inventory[idx];
@@ -554,6 +557,16 @@
         newPlayer.inventory.splice(idx, 1);
         savePlayerData(newPlayer);
         showMessage(`판매 완료 +${item.value}G`, 'success');
+      };
+
+      const toggleProtect = (itemId) => {
+        const idx = player.inventory.findIndex(i => i.id === itemId);
+        if (idx === -1) return;
+        const newPlayer = { ...player };
+        newPlayer.inventory = [...player.inventory];
+        newPlayer.inventory[idx].protected = !newPlayer.inventory[idx].protected;
+        savePlayerData(newPlayer);
+        showMessage(newPlayer.inventory[idx].protected ? "아이템이 보호되었습니다." : "보호가 해제되었습니다.", "info");
       };
 
       const equipItem = (item) => {
@@ -585,12 +598,77 @@
         savePlayerData(newPlayer);
       };
 
-      const renderInventory = (isEnhance) => {
+      // 3. 아이템 조합 기능
+      const combineItems = (targetRarity) => {
+         // targetRarity: 만들고 싶은 상위 등급 (예: 'Rare')
+         // sourceRarity: 재료로 쓸 하위 등급 (예: 'Common')
+         const rarityOrder = ['Common', 'Rare', 'Unique', 'Legend', 'Myth'];
+         const targetIdx = rarityOrder.indexOf(targetRarity);
+         if (targetIdx <= 0) return;
+         const sourceRarity = rarityOrder[targetIdx - 1];
+
+         const materials = player.inventory.filter(i => i.rarity === sourceRarity && !i.protected && player.equippedWeapon?.id !== i.id);
+         
+         if (materials.length < 10) {
+             showMessage(`${sourceRarity} 등급 아이템이 ${10 - materials.length}개 부족합니다. (장착/보호 중인 아이템 제외)`, 'error');
+             return;
+         }
+
+         const newPlayer = { ...player };
+         newPlayer.inventory = [...player.inventory];
+         
+         // 재료 10개 삭제
+         let count = 0;
+         for (let i = newPlayer.inventory.length - 1; i >= 0; i--) {
+             if (newPlayer.inventory[i].rarity === sourceRarity && !newPlayer.inventory[i].protected && player.equippedWeapon?.id !== newPlayer.inventory[i].id) {
+                 newPlayer.inventory.splice(i, 1);
+                 count++;
+                 if (count >= 10) break;
+             }
+         }
+
+         // 상위 아이템 생성
+         const range = ITEM_RANGES[targetRarity];
+         const atk = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
+         const newItem = { id: Date.now().toString(), name: `조합된 ${targetRarity} 검`, rarity: targetRarity, atk, value: range.price, enhanceLevel: 0, type: 'weapon', protected: false };
+         newPlayer.inventory.push(newItem);
+         
+         savePlayerData(newPlayer);
+         showMessage(`조합 성공! ${newItem.name} 획득!`, 'success');
+      };
+
+      const renderInventory = (tab) => {
          const inv = player.inventory || [];
          const frags = player.fragments || {};
+         
+         // 3. 조합 탭 UI
+         if (tab === 'combine') {
+             return (
+                 <div className="space-y-3 p-2">
+                     <div className="text-center text-sm text-gray-400 mb-4">하위 등급 아이템 10개를 모아 상위 등급으로 조합하세요!<br/>(장착 중이거나 보호된 아이템은 제외됩니다)</div>
+                     {['Rare', 'Unique', 'Legend', 'Myth'].map(rarity => {
+                         const rarityOrder = ['Common', 'Rare', 'Unique', 'Legend', 'Myth'];
+                         const sourceRarity = rarityOrder[rarityOrder.indexOf(rarity) - 1];
+                         const count = inv.filter(i => i.rarity === sourceRarity && !i.protected && player.equippedWeapon?.id !== i.id).length;
+                         return (
+                             <div key={rarity} className="bg-slate-800 p-3 rounded flex justify-between items-center border border-slate-600">
+                                 <div>
+                                     <div className={`font-bold ${RARITY_COLORS[rarity]}`}>{rarity} 제작</div>
+                                     <div className="text-xs text-gray-400">필요: {sourceRarity} x 10 (보유: {count})</div>
+                                 </div>
+                                 <button onClick={() => combineItems(rarity)} className={`px-3 py-1 rounded text-xs font-bold ${count >= 10 ? 'bg-purple-600 text-white hover:bg-purple-500' : 'bg-slate-700 text-gray-500 cursor-not-allowed'}`}>
+                                     <Icons.Combine size={14} className="inline mr-1"/>조합
+                                 </button>
+                             </div>
+                         );
+                     })}
+                 </div>
+             );
+         }
+
          return (
          <div className="space-y-3">
-            {!isEnhance && (
+            {tab === 'inventory' && (
                 <div className="bg-slate-800 p-2 rounded mb-2 border border-blue-500/30 text-xs">
                     <h3 className="font-bold mb-1 text-blue-300">🧩 과목 조각 (보스 입장료: {BOSS_ENTRY_COST}개)</h3>
                     <div className="grid grid-cols-2 gap-1">
@@ -604,19 +682,24 @@
 
             {inv.length === 0 ? <div className="text-center text-gray-500 py-10">가방이 비었습니다.</div> :
             inv.map(item => (
-                <div key={item.id} className="bg-slate-700/50 p-2 rounded flex justify-between items-center border border-slate-600">
-                    <div>
-                        <div className={`font-bold text-sm ${RARITY_COLORS[item.rarity]}`}>
+                <div key={item.id} 
+                    className={`bg-slate-700/50 p-2 rounded flex justify-between items-center border ${item.protected ? 'border-yellow-500' : 'border-slate-600'}`}
+                    // 4. 장비 보호 기능 (롱터치 구현을 위한 이벤트)
+                    onContextMenu={(e) => { e.preventDefault(); toggleProtect(item.id); }}
+                >
+                    <div onClick={() => toggleProtect(item.id)} className="cursor-pointer"> {/* 클릭으로도 보호 토글 가능하게 UX 개선 */}
+                        <div className={`font-bold text-sm ${RARITY_COLORS[item.rarity]} flex items-center gap-1`}>
+                            {item.protected && <Icons.Lock size={12} className="text-yellow-400"/>}
                             {item.name} {item.enhanceLevel > 0 && `+${item.enhanceLevel}`}
                             {player.equippedWeapon?.id === item.id && <span className="ml-2 text-[10px] bg-blue-600 text-white px-1 rounded align-middle">E</span>}
                         </div>
                         <div className="text-[10px] text-gray-400">ATK {item.atk} | {item.value}G</div>
                     </div>
                     <div className="flex gap-1">
-                        {!isEnhance ? (
+                        {tab === 'inventory' ? (
                             <>
                             <button onClick={() => equipItem(item)} className="bg-blue-700 px-2 py-1 rounded text-[10px] hover:bg-blue-600 text-white">장착</button>
-                            <button onClick={() => sellItem(item.id)} className="bg-red-900/50 px-2 py-1 rounded text-[10px] hover:bg-red-800 text-red-200">판매</button>
+                            <button onClick={() => sellItem(item.id)} className={`px-2 py-1 rounded text-[10px] text-white ${item.protected ? 'bg-gray-600 cursor-not-allowed' : 'bg-red-900/50 hover:bg-red-800 text-red-200'}`}>판매</button>
                             </>
                         ) : (
                             <button onClick={() => enhanceItem(item)} className="bg-yellow-700 px-2 py-1 rounded text-[10px] hover:bg-yellow-600 flex items-center gap-1 text-white">
@@ -745,10 +828,12 @@
                  </div>
                )}
 
-               {(view === 'inventory' || view === 'enhance') && (
+               {(view === 'inventory' || view === 'enhance' || view === 'combine') && (
                    <div className="p-4 h-full overflow-y-auto md:hidden">
-                       <h2 className="text-xl font-bold mb-4 flex items-center gap-2 pb-2 border-b border-slate-700">{view === 'inventory' ? '인벤토리' : '대장간'}</h2>
-                       {renderInventory(view === 'enhance')}
+                       <h2 className="text-xl font-bold mb-4 flex items-center gap-2 pb-2 border-b border-slate-700">
+                           {view === 'inventory' ? '인벤토리' : view === 'enhance' ? '대장간' : '조합소'}
+                       </h2>
+                       {renderInventory(view)}
                    </div>
                )}
             </div>
@@ -757,8 +842,9 @@
                <div className="flex text-sm font-bold border-b border-slate-700">
                   <button className={`flex-1 p-3 flex items-center justify-center gap-2 ${view === 'enhance' ? 'bg-slate-700 text-gray-400' : 'bg-slate-800 text-blue-400'}`} onClick={() => view === 'enhance' ? setView('lobby') : null}><Icons.Sword size={16}/> 장비</button>
                   <button className={`flex-1 p-3 flex items-center justify-center gap-2 ${view === 'enhance' ? 'bg-slate-800 text-yellow-400' : 'bg-slate-700 text-gray-400'}`} onClick={() => setView('enhance')}><Icons.Hammer size={16}/> 강화</button>
+                  <button className={`flex-1 p-3 flex items-center justify-center gap-2 ${view === 'combine' ? 'bg-slate-800 text-purple-400' : 'bg-slate-700 text-gray-400'}`} onClick={() => setView('combine')}><Icons.Combine size={16}/> 조합</button>
                </div>
-               <div className="flex-1 overflow-y-auto p-3">{renderInventory(view === 'enhance')}</div>
+               <div className="flex-1 overflow-y-auto p-3">{renderInventory(view)}</div>
             </div>
           </div>
 
@@ -766,6 +852,7 @@
              <button onClick={() => setView('lobby')} className={`p-2 rounded flex flex-col items-center gap-1 ${view === 'lobby' ? 'text-blue-400' : 'text-gray-400'}`}><Icons.Menu size={20}/><span className="text-[10px]">로비</span></button>
              <button onClick={() => setView('inventory')} className={`p-2 rounded flex flex-col items-center gap-1 ${view === 'inventory' ? 'text-blue-400' : 'text-gray-400'}`}><Icons.Sword size={20}/><span className="text-[10px]">가방</span></button>
              <button onClick={() => setView('enhance')} className={`p-2 rounded flex flex-col items-center gap-1 ${view === 'enhance' ? 'text-blue-400' : 'text-gray-400'}`}><Icons.Hammer size={20}/><span className="text-[10px]">강화</span></button>
+             <button onClick={() => setView('combine')} className={`p-2 rounded flex flex-col items-center gap-1 ${view === 'combine' ? 'text-blue-400' : 'text-gray-400'}`}><Icons.Combine size={20}/><span className="text-[10px]">조합</span></button>
           </div>
         </div>
       );

@@ -570,9 +570,12 @@
         savePlayerData(newPlayer);
         showMessage('장착했습니다.', 'success');
       };
-
+const getEnhanceCost = (item) => {
+  if (item.enhanceLevel >= 10) return 5000;
+  return item.atk * 10;
+};
       const enhanceItem = (item) => {
-  if (item.enhanceLevel >= 20)
+  if (item.enhanceLevel >= 99)
     return showMessage('최대 강화 상태', 'info');
 
   let cost;
@@ -807,6 +810,7 @@
   </script>
 </body>
 </html>
+
 
 
 

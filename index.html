@@ -52,7 +52,7 @@
     const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwvL_qsVVvaS45572soDLu8byVX70XA4FCKf8jPcXTz8pA6LJvdBWCZo4Y7zl07Dn45og/exec"; 
     
     // --- [수정됨] 게임 밸런스 설정 ---
-    const RARITY_RATES = { Myth: 0.0001, Legend: 0.01, Unique: 0.1, Rare: 0.2, Common: 0.3 };
+    const RARITY_RATES = { Myth: 0.0001, Legend: 0.001, Unique: 0.1, Rare: 0.2, Common: 0.3 };
     const RARITY_COLORS = { Common: 'text-gray-500', Rare: 'text-blue-500', Unique: 'text-purple-500', Legend: 'text-orange-500', Myth: 'text-red-600 font-bold animate-pulse' };
     
     // 1. 기본 공격력 범위 및 2. 판매 가격 수정
@@ -66,7 +66,7 @@
     
     const ENHANCE_RATES = [0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.1];
     const FRAGMENT_DROP_RATE = 0.3; // 일반 필드 조각 확률 30%
-    const BOSS_ENTRY_COST = 10; 
+    const BOSS_ENTRY_COST = 5; 
 
     const MOCK_QUESTIONS = [
       { id: 9991, subject: '시스템', question: "데이터 연결에 실패했습니다.", options: ['새로고침', '관리자 문의'], answer: 0 },
@@ -336,10 +336,10 @@
         let mName, mHp, mAtk, mImg;
 
         if (isBoss) {
-            mName = '혼돈의 지배자 (BOSS)';
+            mName = '감자의 지배자 (BOSS)';
             mHp = 10000;
             mAtk = 999;
-            mImg = '🐲';
+            mImg = '🥔';
             setBossStreak(0);
         } else if (specificSubject === 'LEGEND') {
             const level = targetPlayer.level;
@@ -781,3 +781,4 @@
   </script>
 </body>
 </html>
+

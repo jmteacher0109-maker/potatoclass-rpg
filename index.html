@@ -426,11 +426,11 @@
         
         if (view === 'legend') {
             // [수정] 3. 전설의 던전 아이템 드롭 확률
-            // 신화: 1%, 전설: 5%, 유니크: 20%, 희귀: 30%, 꽝: 나머지
-            if (roll < 0.01) rarity = 'Myth';
-            else if (roll < 0.01 + 0.05) rarity = 'Legend';
-            else if (roll < 0.01 + 0.05 + 0.20) rarity = 'Unique';
-            else if (roll < 0.01 + 0.05 + 0.20 + 0.30) rarity = 'Rare';
+            // 신화: 0.1%, 전설: 1.1%, 유니크: 21%, 희귀: 31%, 꽝: 나머지
+            if (roll < 0.001) rarity = 'Myth';
+            else if (roll < 0.001 + 0.01) rarity = 'Legend';
+            else if (roll < 0.001 + 0.01 + 0.20) rarity = 'Unique';
+            else if (roll < 0.001 + 0.01 + 0.20 + 0.30) rarity = 'Rare';
             // 나머지는 null (꽝, 일반 아이템 없음)
         } else {
             // 일반 필드 확률
@@ -451,10 +451,19 @@
       };
 
       const dropBossReward = (playerToUpdate) => {
-        const rarity = Math.random() < 0.1 ? 'Myth' : 'Legend';
+       const roll = Math.random();
+  let rarity;
+
+  if (roll < 0.01) {
+    rarity = 'Myth';
+  } else if (roll < 0.16) {
+    rarity = 'Legend';
+  } else {
+    rarity = 'Unique';
+  }
         const range = ITEM_RANGES[rarity];
         const atk = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
-        const newItem = { id: Date.now().toString(), name: `보스 슬레이어 (${rarity})`, rarity, atk, value: range.price * 2, enhanceLevel: 0, type: 'weapon' };
+        const newItem = { id: Date.now().toString(), name: `감자 슬레이어 (${rarity})`, rarity, atk, value: range.price * 2, enhanceLevel: 0, type: 'weapon' };
         playerToUpdate.inventory.push(newItem);
         showMessage(`보스 보상: ${newItem.name} 획득!`, 'success');
       };
@@ -781,5 +790,6 @@
   </script>
 </body>
 </html>
+
 
 

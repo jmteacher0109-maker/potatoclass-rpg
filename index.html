@@ -572,27 +572,44 @@
       };
 
       const enhanceItem = (item) => {
-        const cost = 100 + (item.enhanceLevel * 100);
-        if (player.gold < cost) return showMessage('골드 부족!', 'error');
-        if (item.enhanceLevel >= 10) return showMessage('최대 강화 상태', 'info');
-        
-        const newPlayer = { ...player };
-        newPlayer.inventory = [...player.inventory];
-        newPlayer.gold -= cost;
-        const target = newPlayer.inventory.find(i => i.id === item.id);
-        if (!target) return;
-        
-        if (Math.random() < ENHANCE_RATES[target.enhanceLevel]) {
-           const bonus = target.enhanceLevel + 1;
-           target.enhanceLevel += 1;
-           target.atk += bonus;
-           showMessage(`강화 성공! +${target.enhanceLevel}`, 'success');
-        } else {
-           showMessage('강화 실패...', 'error');
-        }
-        if (newPlayer.equippedWeapon?.id === target.id) newPlayer.equippedWeapon = target;
-        savePlayerData(newPlayer);
-      };
+  if (item.enhanceLevel >= 20)
+    return showMessage('최대 강화 상태', 'info');
+
+  let cost;
+  let successRate;
+
+  if (item.enhanceLevel >= 10) {
+    cost = 5000;
+    successRate = 0.1;
+  } else {
+    cost = item.atk * 10;
+    successRate = ENHANCE_RATES[item.enhanceLevel];
+  }
+
+  if (player.gold < cost)
+    return showMessage('골드 부족!', 'error');
+
+  const newPlayer = { ...player };
+  newPlayer.inventory = [...player.inventory];
+  newPlayer.gold -= cost;
+
+  const target = newPlayer.inventory.find(i => i.id === item.id);
+  if (!target) return;
+
+  if (Math.random() < successRate) {
+    const increase = Math.floor(target.atk * 0.1);
+    target.atk += increase;
+    target.enhanceLevel += 1;
+    showMessage(`강화 성공! +${target.enhanceLevel}`, 'success');
+  } else {
+    showMessage('강화 실패...', 'error');
+  }
+
+  if (newPlayer.equippedWeapon?.id === target.id)
+    newPlayer.equippedWeapon = target;
+
+  savePlayerData(newPlayer);
+};
 
       const renderInventory = (isEnhance) => {
          const inv = player.inventory || [];
@@ -790,6 +807,7 @@
   </script>
 </body>
 </html>
+
 
 
 

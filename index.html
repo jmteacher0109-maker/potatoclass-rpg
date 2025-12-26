@@ -649,7 +649,7 @@ const getEnhanceCost = (item) => {
                             </>
                         ) : (
                             <button onClick={() => enhanceItem(item)} className="bg-yellow-700 px-2 py-1 rounded text-[10px] hover:bg-yellow-600 flex items-center gap-1 text-white">
-                                <Icons.Hammer size={10}/> {100 + item.enhanceLevel * 100}G
+                                <Icons.Hammer size={10}/> {getEnhanceCost(item}G
                             </button>
                         )}
                     </div>
@@ -810,6 +810,7 @@ const getEnhanceCost = (item) => {
   </script>
 </body>
 </html>
+
 
 
 

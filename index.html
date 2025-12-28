@@ -144,7 +144,7 @@ const ARMOR_BASE_HP = {
       const [loginPw, setLoginPw] = useState('');
       
       const defaultPlayer = {
-        name: '모험가', level: 1, exp: 0, maxExp: 100, hp: 100, maxHp: 100, gold: 0, baseAtk: 10, 
+        name: '모험가', level: 1, exp: 0, maxExp: 100, hp: 100, baseMaxHp: 100, maxHp: 100, gold: 0, baseAtk: 10, 
         equippedWeapon: null, equippedArmor: null, inventory: [], solved: [], fragments: { '국어': 0, '수학': 0, '사회': 0, '과학': 0, '상식': 0 }
       };
 
@@ -240,13 +240,25 @@ const [wrongAnswerModal, setWrongAnswerModal] = useState(null);
         localStorage.setItem('last_login_name', loginName.trim());
 
         const safeSetPlayer = (data) => {
-            const mergedPlayer = { ...defaultPlayer, ...data };
-            if (!mergedPlayer.inventory) mergedPlayer.inventory = [];
-            if (!mergedPlayer.solved) mergedPlayer.solved = []; 
-            if (!mergedPlayer.fragments) mergedPlayer.fragments = { ...defaultPlayer.fragments };
-            setPlayer(mergedPlayer);
-            return mergedPlayer;
-        };
+  const mergedPlayer = { ...defaultPlayer, ...data };
+
+  // 🔥 레벨 기반 baseMaxHp 보정
+  const expectedBaseHp = 100 + (mergedPlayer.level - 1) * 20;
+
+  if (!mergedPlayer.baseMaxHp || mergedPlayer.baseMaxHp < expectedBaseHp) {
+    mergedPlayer.baseMaxHp = expectedBaseHp;
+  }
+
+  mergedPlayer.maxHp = getTotalHp(mergedPlayer);
+  mergedPlayer.hp = Math.min(mergedPlayer.hp, mergedPlayer.maxHp);
+
+  if (!mergedPlayer.inventory) mergedPlayer.inventory = [];
+  if (!mergedPlayer.solved) mergedPlayer.solved = [];
+  if (!mergedPlayer.fragments) mergedPlayer.fragments = { ...defaultPlayer.fragments };
+
+  setPlayer(mergedPlayer);
+  return mergedPlayer;
+};
 
         if (!db) { 
              const localData = localStorage.getItem('rpg_save_' + customId);
@@ -302,15 +314,13 @@ const [wrongAnswerModal, setWrongAnswerModal] = useState(null);
         return atk;
       };
 const getTotalHp = (p = player) => {
-  let hp = p.maxHp;
-  if (p.equippedArmor) hp += p.equippedArmor.hp;
-  return hp;
+  return p.baseMaxHp + (p.equippedArmor?.hp ?? 0);
 };
 const getEnhanceCost = (item) => {
   if (item.enhanceLevel >= 10) return 5000;
 
   if (item.type === 'weapon') return item.atk * 10;
-  if (item.type === 'armor') return item.hp * 10;
+  if (item.type === 'armor') return item.hp * 1;
 
   return 0;
 };
@@ -341,8 +351,8 @@ const getEnhanceCost = (item) => {
       };
 
       const tryEnterLegendDungeon = () => {
-         if (player.level < 20) {
-            showMessage("🚫 전설의 던전은 레벨 20부터 입장 가능합니다!", "error");
+         if (player.level < 40) {
+            showMessage("🚫 전설의 던전은 레벨 40부터 입장 가능합니다!", "error");
             return;
          }
          showMessage(`🏰 전설의 던전에 입장합니다! (강력한 몬스터 주의)`, "success");
@@ -566,8 +576,9 @@ playerToUpdate.inventory.push(newItem);
                 newPlayer.level += 1;
                 newPlayer.exp -= newPlayer.maxExp;
                 newPlayer.maxExp = Math.floor(newPlayer.maxExp * 1.1); 
-                newPlayer.maxHp += 20;
-newPlayer.hp = getTotalHp(newPlayer);
+                newPlayer.baseMaxHp += 20;
+newPlayer.maxHp = getTotalHp(newPlayer);
+newPlayer.hp = newPlayer.maxHp;
                 newPlayer.baseAtk += 3; 
                 logMsg += ' ✨ 레벨 업!';
               }
@@ -615,16 +626,26 @@ setWrongAnswerModal(
         showMessage(`판매 완료 +${item.value}G`, 'success');
       };
 
-     const equipItem = (item) => {
+   const equipItem = (item) => {
   const newPlayer = { ...player };
+
   if (item.type === 'weapon') {
     newPlayer.equippedWeapon = item;
   }
+
   if (item.type === 'armor') {
+    const oldTotalHp = getTotalHp(newPlayer);
+
     newPlayer.equippedArmor = item;
+
+    const newTotalHp = getTotalHp(newPlayer);
+    const diff = newTotalHp - oldTotalHp;
+
+    newPlayer.hp = Math.min(newPlayer.hp + diff, newTotalHp);
+    newPlayer.maxHp = newTotalHp;
   }
+
   savePlayerData(newPlayer);
-  showMessage('장착했습니다.', 'success');
 };
 
 const enhanceItem = (item) => {
@@ -648,20 +669,36 @@ const enhanceItem = (item) => {
   const target = newPlayer.inventory.find(i => i.id === item.id);
   if (!target) return;
 
-  if (Math.random() < successRate) {
-    if (target.type === 'weapon') {
-      const inc = Math.floor(target.atk * 0.1);
-      target.atk += inc;
-    }
-    if (target.type === 'armor') {
-      const inc = Math.floor(target.hp * 0.1);
-      target.hp += inc;
-    }
-    target.enhanceLevel += 1;
-    showMessage(`강화 성공! +${target.enhanceLevel}`, 'success');
-  } else {
-    showMessage('강화 실패...', 'error');
+if (Math.random() < successRate) {
+
+  if (target.type === 'weapon') {
+    const inc = Math.floor(target.atk * 0.1);
+    target.atk += inc;
   }
+
+  if (target.type === 'armor') {
+    const inc = Math.floor(target.hp * 0.1);
+    target.hp += inc;
+
+    // 장착 중인 갑옷이면 HP 즉시 반영
+    if (newPlayer.equippedArmor?.id === target.id) {
+      const oldTotalHp = newPlayer.maxHp;
+      const newTotalHp = getTotalHp(newPlayer);
+
+      newPlayer.maxHp = newTotalHp;
+      newPlayer.hp = Math.min(
+        newPlayer.hp + (newTotalHp - oldTotalHp),
+        newTotalHp
+      );
+    }
+  }
+
+  target.enhanceLevel += 1;
+  showMessage(`강화 성공! +${target.enhanceLevel}`, 'success');
+
+} else {
+  showMessage('강화 실패...', 'error');
+}
 
   if (newPlayer.equippedWeapon?.id === target.id)
     newPlayer.equippedWeapon = target;

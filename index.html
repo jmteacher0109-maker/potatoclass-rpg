@@ -672,7 +672,7 @@
   const s = String(monster.image || "");
   const isImg = /^(https?:\/\/|data:image\/)/.test(s); // ✅ 링크/데이터URL이면 이미지로 판단
   return isImg ? (
-    <img src={s} alt={monster.name} className="w-[420px] h-[420px] object-contain mx-auto mb-4 drop-shadow-2xl" />
+    <img src={s} alt={monster.name} className="w-[240px] h-[240px] object-contain mx-auto mb-4 drop-shadow-2xl" />
   ) : (
     <div className="text-8xl mb-4 filter drop-shadow-2xl animate-bounce-slow">
       {monster.image}
@@ -749,3 +749,4 @@
   </script>
 </body>
 </html>
+

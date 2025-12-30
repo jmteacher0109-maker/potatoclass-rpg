@@ -135,7 +135,74 @@ const ARMOR_BASE_HP = {
         return this.props.children;
       }
     }
+const RankingBar = ({ db, appId, player }) => {
+  const [levelRanking, setLevelRanking] = React.useState([]);
+  const [atkRanking, setAtkRanking] = React.useState([]);
 
+  const calcAtk = React.useCallback((u) => {
+    const base = Number(u?.baseAtk || 0);
+    const weapon = Number(u?.equippedWeapon?.atk || 0);
+    return base + weapon; // ✅ 현재 전투 기준 ATK
+  }, []);
+
+  React.useEffect(() => {
+    if (!db) return;
+
+    const baseRef = db
+      .collection('artifacts')
+      .doc(appId)
+      .collection('accounts');
+
+    // ✅ 한 번에 받아서(예: 최대 200명) 클라에서 정렬 → 필드 없어도 OK
+    const unsub = baseRef.limit(200).onSnapshot((snap) => {
+      const users = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+      const lvl = [...users]
+        .sort((a, b) => (Number(b.level || 0) - Number(a.level || 0)))
+        .slice(0, 5);
+
+      const atk = [...users]
+        .sort((a, b) => (calcAtk(b) - calcAtk(a)))
+        .slice(0, 5);
+
+      setLevelRanking(lvl);
+      setAtkRanking(atk);
+    });
+
+    return () => unsub();
+  }, [db, appId, calcAtk]);
+
+  const NameChip = ({ u, i, value, colorClass }) => (
+    <span
+      key={u.id}
+      className={`text-xs px-2 py-1 rounded-full bg-slate-800/70 border border-slate-700 whitespace-nowrap ${
+        u.name === player.name ? "text-yellow-300 font-bold border-yellow-500/40" : "text-gray-200"
+      }`}
+    >
+      {i + 1}.{u.name}({value})
+    </span>
+  );
+
+  return (
+    <div className="bg-slate-900/60 border-t border-slate-700 px-3 py-2">
+      {/* ✅ 1줄: 레벨 랭킹 */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-blue-300 font-bold text-sm w-10">Lv</span>
+        {levelRanking.map((u, i) => (
+          <NameChip u={u} i={i} value={u.level ?? 0} />
+        ))}
+      </div>
+
+      {/* ✅ 2줄: ATK 랭킹 (현재 전투 기준) */}
+      <div className="flex items-center gap-2 flex-wrap mt-2">
+        <span className="text-red-300 font-bold text-sm w-10">ATK</span>
+        {atkRanking.map((u, i) => (
+          <NameChip u={u} i={i} value={calcAtk(u)} />
+        ))}
+      </div>
+    </div>
+  );
+};
     function App() {
       const [loading, setLoading] = useState(true);
       const [errorMsg, setErrorMsg] = useState(null);
@@ -149,6 +216,9 @@ const [forgePhase, setForgePhase] = useState('ready');
 const [forgeResult, setForgeResult] = useState(null);
 const forgeTimerRef = useRef(null);
 const [forgeErrorIndex, setForgeErrorIndex] = useState(null);
+const [invTab, setInvTab] = useState('weapon');
+const [invSort, setInvSort] = useState('rarity');
+
 
 useEffect(() => {
   if (!forgeMiniGame || forgePhase !== 'ready') return;
@@ -376,16 +446,25 @@ const [wrongAnswerModal, setWrongAnswerModal] = useState(null);
         setLoading(false);
       };
 
-      const savePlayerData = async (newData) => {
-        setPlayer(newData);
-        if (!accountId) return;
-        localStorage.setItem('rpg_save_' + accountId, JSON.stringify(newData));
-        if (db) {
-            try {
-                await db.collection('artifacts').doc(appId).collection('accounts').doc(accountId).set(newData);
-            } catch (e) { console.error(e); }
-        }
-      };
+const savePlayerData = async (newData) => {
+  const totalAtk = getTotalAtk(newData);
+
+  const dataToSave = {
+    ...newData,
+    totalAtk, // 🔥 추가
+  };
+
+  setPlayer(newData);
+
+  if (db && accountId) {
+    await db
+      .collection('artifacts')
+      .doc(appId)
+      .collection('accounts')
+      .doc(accountId)
+      .set(dataToSave);
+  }
+};
 
       const getTotalAtk = (p = player) => {
         let atk = p.baseAtk;
@@ -938,52 +1017,177 @@ if (Math.random() < successRate) {
 
   savePlayerData(newPlayer);
 };
+// ✅ 아이템 정렬 우선순위
+const RARITY_ORDER = { Myth: 0, Legend: 1, Unique: 2, Rare: 3, Common: 4 };
 
-      const renderInventory = (isEnhance) => {
-         const inv = player.inventory || [];
-         const frags = player.fragments || {};
-         return (
-         <div className="space-y-3">
-            {!isEnhance && (
-                <div className="bg-slate-800 p-2 rounded mb-2 border border-blue-500/30 text-xs">
-                    <h3 className="font-bold mb-1 text-blue-300">🧩 과목 조각 (보스 입장료: {BOSS_ENTRY_COST}개)</h3>
-                    <div className="grid grid-cols-2 gap-1">
-                        <div>국어: {frags['국어']||0}</div>
-                        <div>수학: {frags['수학']||0}</div>
-                        <div>사회: {frags['사회']||0}</div>
-                        <div>과학: {frags['과학']||0}</div>
-                    </div>
-                </div>
-            )}
+// id가 number/string/float 섞여도 "최신" 비교가 되게 변환
+const getCreatedKey = (id) => {
+  if (typeof id === 'number') return id; // Date.now() or Date.now()+Math.random
+  if (typeof id === 'string') {
+    const n = parseInt(id, 10);
+    return Number.isFinite(n) ? n : 0;
+  }
+  return 0;
+};
 
-            {inv.length === 0 ? <div className="text-center text-gray-500 py-10">가방이 비었습니다.</div> :
-            inv.map(item => (
-                <div key={item.id} className="bg-slate-700/50 p-2 rounded flex justify-between items-center border border-slate-600">
-                    <div>
-                        <div className={`font-bold text-sm ${RARITY_COLORS[item.rarity]}`}>
-                            {item.name} {item.enhanceLevel > 0 && `+${item.enhanceLevel}`}
-                            {player.equippedWeapon?.id === item.id && <span className="ml-2 text-[10px] bg-blue-600 text-white px-1 rounded align-middle">E</span>}
-                        </div>
-                        <div className="text-[10px] text-gray-400">{item.type === 'weapon' && `ATK ${item.atk}`}
-  {item.type === 'armor' && `HP +${item.hp}`}  {' | '}  {item.value}G</div>
-                    </div>
-                    <div className="flex gap-1">
-                        {!isEnhance ? (
-                            <>
-                            <button onClick={() => equipItem(item)} className="bg-blue-700 px-2 py-1 rounded text-[10px] hover:bg-blue-600 text-white">장착</button>
-                            <button onClick={() => sellItem(item.id)} className="bg-red-900/50 px-2 py-1 rounded text-[10px] hover:bg-red-800 text-red-200">판매</button>
-                            </>
-                        ) : (
-                            <button onClick={() => enhanceItem(item)} className="bg-yellow-700 px-2 py-1 rounded text-[10px] hover:bg-yellow-600 flex items-center gap-1 text-white">
-                                <Icons.Hammer size={10}/> {getEnhanceCost(item)}G
-                            </button>
-                        )}
-                    </div>
-                </div>
-            ))}
-         </div>
-         );
-      };
+// ✅ 현재 탭 기준으로 "장착중(E)" 판별 (무기탭이면 무기만, 갑옷탭이면 갑옷만)
+const isEquippedItem = (item, p = player) => {
+  if (item.type === 'weapon') return p.equippedWeapon?.id === item.id;
+  if (item.type === 'armor') return p.equippedArmor?.id === item.id;
+  return false;
+};
+
+// ✅ comparator (정렬 모드: rarity / stat)
+const makeCompareItems = (p, sortMode) => (a, b) => {
+  // 0) 장착템 최상단 고정
+  const ae = isEquippedItem(a, p) ? 0 : 1;
+  const be = isEquippedItem(b, p) ? 0 : 1;
+  if (ae !== be) return ae - be;
+
+  // 1) 등급별
+  if (sortMode === 'rarity') {
+    const ar = RARITY_ORDER[a.rarity] ?? 9;
+    const br = RARITY_ORDER[b.rarity] ?? 9;
+    if (ar !== br) return ar - br;
+
+    // 같은 등급이면 "최신은 아래" (오래된게 위)
+    return getCreatedKey(a.id) - getCreatedKey(b.id);
+  }
+
+  // 2) 스탯별 (무기=ATK, 갑옷=HP)
+  const aStat = a.type === 'weapon' ? (a.atk ?? 0) : (a.hp ?? 0);
+  const bStat = b.type === 'weapon' ? (b.atk ?? 0) : (b.hp ?? 0);
+  if (aStat !== bStat) return bStat - aStat; // 높은 스탯이 위
+
+  // 스탯 같으면 등급
+  const ar = RARITY_ORDER[a.rarity] ?? 9;
+  const br = RARITY_ORDER[b.rarity] ?? 9;
+  if (ar !== br) return ar - br;
+
+  // 동순위 최신은 아래
+  return getCreatedKey(a.id) - getCreatedKey(b.id);
+};
+
+const renderInventory = (isEnhance) => {
+  const inv = player.inventory || [];
+  const frags = player.fragments || {};
+
+  // ✅ 탭 필터 (무기/갑옷만)
+  const filtered = inv.filter(item => item.type === invTab);
+
+  // ✅ 정렬 적용(장착템 고정 포함)
+  const sorted = [...filtered].sort(makeCompareItems(player, invSort));
+
+  return (
+    <div className="space-y-3">
+      {/* ✅ (인벤에서만) 조각 표시 */}
+      {!isEnhance && (
+        <div className="bg-slate-800 p-2 rounded mb-2 border border-blue-500/30 text-xs">
+          <h3 className="font-bold mb-1 text-blue-300">
+            🧩 과목 조각 (보스 입장료: {BOSS_ENTRY_COST}개)
+          </h3>
+          <div className="grid grid-cols-2 gap-1">
+            <div>국어: {frags['국어']||0}</div>
+            <div>수학: {frags['수학']||0}</div>
+            <div>사회: {frags['사회']||0}</div>
+            <div>과학: {frags['과학']||0}</div>
+          </div>
+        </div>
+      )}
+
+      {/* ✅ 탭 + 정렬 UI (무기/갑옷만) */}
+      <div className="bg-slate-800 p-2 rounded border border-slate-700 flex items-center gap-2 justify-between">
+        <div className="flex gap-1">
+          {[
+            { key: 'weapon', label: '무기' },
+            { key: 'armor', label: '갑옷' },
+          ].map(t => (
+            <button
+              key={t.key}
+              onClick={() => setInvTab(t.key)}
+              className={`px-2 py-1 rounded text-xs border transition
+                ${invTab === t.key
+                  ? 'bg-blue-700 border-blue-400 text-white'
+                  : 'bg-slate-900/40 border-slate-600 text-gray-300 hover:bg-slate-700'}
+              `}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] text-gray-400">정렬</span>
+          <select
+            value={invSort}
+            onChange={(e) => setInvSort(e.target.value)}
+            className="bg-slate-900/50 border border-slate-600 text-xs rounded px-2 py-1 text-gray-200"
+          >
+            <option value="rarity">등급별(신화→커먼)</option>
+            <option value="stat">스탯별(ATK/HP)</option>
+          </select>
+        </div>
+      </div>
+
+      {/* ✅ 리스트 */}
+      {sorted.length === 0 ? (
+        <div className="text-center text-gray-500 py-10">표시할 아이템이 없습니다.</div>
+      ) : (
+        sorted.map(item => (
+          <div
+            key={item.id}
+            className="bg-slate-700/50 p-2 rounded flex justify-between items-center border border-slate-600"
+          >
+            <div>
+              <div className={`font-bold text-sm ${RARITY_COLORS[item.rarity]}`}>
+                {item.name} {item.enhanceLevel > 0 && `+${item.enhanceLevel}`}
+
+                {/* ✅ 장착(E) 표시 */}
+                {isEquippedItem(item, player) && (
+                  <span className="ml-2 text-[10px] bg-blue-600 text-white px-1 rounded align-middle">
+                    E
+                  </span>
+                )}
+              </div>
+
+              <div className="text-[10px] text-gray-400">
+                {item.type === 'weapon' && `ATK ${item.atk ?? 0}`}
+                {item.type === 'armor' && `HP +${item.hp ?? 0}`}
+                {' | '} {item.value}G
+              </div>
+            </div>
+
+            <div className="flex gap-1">
+              {!isEnhance ? (
+                <>
+                  <button
+                    onClick={() => equipItem(item)}
+                    className="bg-blue-700 px-2 py-1 rounded text-[10px] hover:bg-blue-600 text-white"
+                  >
+                    장착
+                  </button>
+                  <button
+                    onClick={() => sellItem(item.id)}
+                    className="bg-red-900/50 px-2 py-1 rounded text-[10px] hover:bg-red-800 text-red-200"
+                  >
+                    판매
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => enhanceItem(item)}
+                  className="bg-yellow-700 px-2 py-1 rounded text-[10px] hover:bg-yellow-600 flex items-center gap-1 text-white"
+                >
+                  <Icons.Hammer size={10}/> {getEnhanceCost(item)}G
+                </button>
+              )}
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  );
+};
 const renderForge = () => {
   return (
     <div className="p-4 space-y-4">
@@ -1185,22 +1389,52 @@ const renderForgeMiniGame = () => {
     </div>
   </div>
 )}
-          <div className="bg-slate-800 p-3 flex justify-between items-center border-b border-slate-700 z-10 shrink-0">
-             <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center font-bold shadow-md">{player.level}</div>
-                <div>
-                   <div className="font-bold text-sm flex items-center gap-2">{player.name} <span className="text-xs font-normal text-gray-400 bg-slate-900 px-2 rounded-full">{player.equippedWeapon ? player.equippedWeapon.name : '맨손'}</span></div>
-                   <div className="w-32 h-2 bg-slate-700 rounded-full overflow-hidden mt-1"><div className="h-full bg-yellow-400" style={{ width: `${(player.exp / player.maxExp) * 100}%` }}></div></div>
-                </div>
-             </div>
-             <div className="flex gap-4 text-sm font-semibold">
-                <div className="flex flex-col items-end">
-                   <div className="flex items-center text-red-400"><Icons.Heart size={14} className="mr-1"/> {player.hp}/{player.maxHp}</div>
-                   <div className="flex items-center text-yellow-400"><Icons.Coins size={14} className="mr-1"/> {player.gold} G</div>
-                </div>
-                <div className="flex items-center text-blue-300"><Icons.Sword size={14} className="mr-1"/> ATK {getTotalAtk()}</div>
-             </div>
-          </div>
+{/* ✅ 상단 UI */}
+<div className="bg-slate-800 border-b border-slate-700 z-10 shrink-0">
+  <div className="p-3 flex items-center gap-3">
+    {/* ✅ 왼쪽: 레벨/이름/경험치 */}
+    <div className="flex items-center gap-3 shrink-0">
+      <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center font-bold shadow-md">
+        {player.level}
+      </div>
+      <div>
+        <div className="font-bold text-sm flex items-center gap-2">
+          {player.name}
+          <span className="text-xs font-normal text-gray-400 bg-slate-900 px-2 rounded-full">
+            {player.equippedWeapon ? player.equippedWeapon.name : '맨손'}
+          </span>
+        </div>
+        <div className="w-32 h-2 bg-slate-700 rounded-full overflow-hidden mt-1">
+          <div
+            className="h-full bg-yellow-400"
+            style={{ width: `${(player.exp / player.maxExp) * 100}%` }}
+          />
+        </div>
+      </div>
+    </div>
+
+    {/* ✅ 가운데: 랭킹 (여기가 “끼워넣는” 정확한 위치) */}
+    <div className="mx-4 flex-1 min-w-0 max-w-[620px]">
+      <RankingBar db={db} appId={appId} player={player} />
+    </div>
+
+    {/* ✅ 오른쪽: HP/골드/ATK */}
+    <div className="flex gap-4 text-sm font-semibold shrink-0">
+      <div className="flex flex-col items-end">
+        <div className="flex items-center text-red-400">
+          <Icons.Heart size={14} className="mr-1" /> {player.hp}/{player.maxHp}
+        </div>
+        <div className="flex items-center text-yellow-400">
+          <Icons.Coins size={14} className="mr-1" /> {player.gold} G
+        </div>
+      </div>
+      <div className="flex items-center text-blue-300">
+        <Icons.Sword size={14} className="mr-1" /> ATK {getTotalAtk()}
+      </div>
+    </div>
+  </div>
+</div>
+
 
           <div className="flex flex-1 overflow-hidden relative">
             <div className="flex-1 flex flex-col relative overflow-y-auto bg-slate-900">

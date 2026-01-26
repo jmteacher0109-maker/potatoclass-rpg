@@ -38,15 +38,24 @@
     const GOOGLE_SCRIPT_URL="https://script.google.com/macros/s/AKfycbwvL_qsVVvaS45572soDLu8byVX70XA4FCKf8jPcXTz8pA6LJvdBWCZo4Y7zl07Dn45og/exec";
 
     // --- [수정됨] 게임 밸런스 설정 ---
-    const RARITY_RATES={Myth:0.0001,Legend:0.001,Unique:0.1,Rare:0.2,Common:0.3};
+   // ✅ 수련의 숲(=일반 필드) 드롭률: Unique 1%, Rare 30%, Common 30% (Legend/Myth 없음)
+const RARITY_RATES = { Unique: 0.01, Rare: 0.30, Common: 0.30 };
+
+// ✅ 전설의 던전 드롭률: Legend 0.1%, Unique 10%, Rare 40%, 나머지 드롭 없음 (Myth 없음)
+const LEGEND_DROP_RATES = { Legend: 0.001, Unique: 0.10, Rare: 0.40 };
+
+// ✅ 시련의 탑 드롭률: Myth 0.01%, Legend 1%, Unique 30%, 나머지 드롭 없음
+const TOWER_DROP_RATES  = { Myth: 0.0001, Legend: 0.01, Unique: 0.30 };
+
     const RARITY_COLORS={Common:"text-gray-500",Rare:"text-blue-500",Unique:"text-purple-500",Legend:"text-orange-500",Myth:"text-red-600 font-bold animate-pulse"};
 
     // 1. 기본 공격력 범위 및 2. 판매 가격 수정
-    const ITEM_RANGES={Common:{min:1,max:10,price:100},Rare:{min:10,max:50,price:300},Unique:{min:50,max:100,price:1000},Legend:{min:100,max:500,price:10000},Myth:{min:500,max:1000,price:50000}};
+    const ITEM_RANGES={Common:{min:10,max:50,price:100},Rare:{min:50,max:100,price:300},Unique:{min:100,max:200,price:1000},Legend:{min:500,max:1000,price:10000},Myth:{min:1000,max:3000,price:50000}};
     const ARMOR_BASE_HP={Common:50,Rare:100,Unique:500,Legend:1000,Myth:3000};
 
     const ENHANCE_RATES=[0.9,0.8,0.7,0.6,0.5,0.4,0.3,0.2,0.1,0.1];
     const FRAGMENT_DROP_RATE=0.3; // 일반 필드 조각 확률 30%
+    const STONE_DROP_RATE = 0.05; // ✅ 시련의 탑 강화석 드롭 확률 5%
     const BOSS_ENTRY_COST=10;
 
     const MOCK_QUESTIONS=[
@@ -58,6 +67,7 @@
     const firebaseConfig={apiKey:"AIzaSyDOzfbbafGWHHC2QbGXTsp67bop74O5RIM",authDomain:"potatp-rpg.firebaseapp.com",projectId:"potatp-rpg",storageBucket:"potatp-rpg.firebasestorage.app",messagingSenderId:"665096612054",appId:"1:665096612054:web:2252bc6f22adf1f1cf8177"};
     let isFirebaseOk=false; try{ if(typeof firebase!=="undefined"){ if(!firebase.apps.length) firebase.initializeApp(firebaseConfig); isFirebaseOk=true; } }catch(e){ console.error("Firebase Init Error",e); }
     const db=isFirebaseOk?firebase.firestore():null, auth=isFirebaseOk?firebase.auth():null, appId="educational-rpg-gsheet";
+
 
     const Icons={
       Sword:({size=20,className=""})=><svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"/><line x1="13" x2="19" y1="19" y2="13"/><line x1="16" x2="20" y1="16" y2="20"/><line x1="19" x2="21" y1="21" y2="19"/></svg>,
@@ -105,6 +115,278 @@
         </div>
       );
     };
+    // ✅ 몬스터 이미지 테이블(없으면 null → emoji로 대체)
+const FIELD_IMGS = [
+  "https://i.postimg.cc/Dy5jqxfh/ganji-gamja.png",
+  "https://i.postimg.cc/BQNYxmZ4/gamdong-gamja.png",
+  "https://i.postimg.cc/9F18GLXh/melong-gamja.png",
+  "https://i.postimg.cc/15MCpvR5/uneun-gamja.png",
+  "https://i.postimg.cc/ZKj7rwYb/usneun-gamja.png",
+  "https://i.postimg.cc/PrK3mSfh/kojubu-gamja.png"
+];
+
+const LEGEND_IMGS = [
+  null, // 🐉 드래곤 나이트
+  null, // 😈 고대 악마
+  null, // 👼 타락한 천사
+  null  // 👁️ 심연의 감시자
+];
+
+const BOSS_IMG = null; // ✅ 보스도 이미지 넣고 싶으면 URL로 교체
+
+const TOWER_IMGS = [
+  null, // 🗿 탑의 수호자
+  null, // ⚔️ 광기의 기사
+  null, // 👻 심연의 망령
+  null  // 👁️ 저주받은 감시자
+];
+
+// ===== Town Lobby (RPG Village) v1 =====
+const TOWN = {
+  W: 1400,
+  H: 900,
+  SPEED: 1,
+  STALE_MS: 20000,
+};
+
+// NPC/포탈(상호작용 오브젝트)
+const TOWN_OBJECTS = [
+  { id: "forge", type: "npc", label: "대장간", emoji: "🔨", x: 620, y: 620, w: 110, h: 110 },
+  { id: "training", type: "portal", label: "수련의 숲", emoji: "🌲", x: 420, y: 220, w: 110, h: 110 },
+  { id: "legend", type: "portal", label: "전설의 던전", emoji: "🏰", x: 540, y: 220, w: 110, h: 110 },
+  { id: "boss", type: "portal", label: "보스 레이드", emoji: "💀", x: 680, y: 220, w: 110, h: 110 },
+  { id: "tower", type: "portal", label: "시련의 탑", emoji: "🗼", x: 800, y: 220, w: 110, h: 110 },
+  { id: "quest", type: "npc", label: "퀘스트", emoji: "📜", x: 740, y: 620, w: 110, h: 110 },
+];
+
+// 간단 충돌용 “건물” (지나다니면 안 되는 구역)
+const TOWN_BLOCKS = [];
+
+// AABB 충돌
+const intersects = (a, b) =>
+  a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+
+// 거리(상호작용)
+const dist2 = (ax, ay, bx, by) => {
+  const dx = ax - bx, dy = ay - by;
+  return dx*dx + dy*dy;
+};
+// ✅ TownScene을 App 밖으로 빼기 (커서 안 사라짐)
+function TownScene({
+  player,
+  townPos,
+  others,
+  chatOpen,
+  setChatOpen,
+  chatInput,
+  setChatInput,
+  chatMessages,
+  sendChat,
+  chatInputRef,
+}) {
+  // 카메라(내 캐릭터 중심)
+  const vw = 900, vh = 520;
+  const camX = Math.max(0, Math.min(TOWN.W - vw, townPos.x - vw / 2));
+  const camY = Math.max(0, Math.min(TOWN.H - vh, townPos.y - vh / 2));
+
+  const meStyle = {
+    left: townPos.x - 16 - camX,
+    top: townPos.y - 16 - camY,
+  };
+
+  return (
+    <div className="p-4 max-w-5xl mx-auto w-full">
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <div className="text-2xl font-bold text-blue-200">🏘️ 감자 마을</div>
+          <div className="text-xs text-gray-400">이동: WASD/방향키 · 상호작용: E</div>
+        </div>
+        <div className="text-xs text-gray-300 bg-slate-800/70 border border-slate-700 rounded px-3 py-2">
+          접속자: <b className="text-yellow-300">{1 + (others?.length || 0)}</b>
+        </div>
+      </div>
+
+      <div
+        className="relative rounded-xl border border-slate-700 overflow-hidden bg-slate-900 shadow-2xl"
+        style={{ width: "100%", maxWidth: vw, aspectRatio: "900 / 520" }}
+      >
+        {/* 월드 배경 */}
+        <div
+          className="absolute inset-0"
+          style={{
+            width: vw,
+            height: vh,
+            background:
+              "radial-gradient(circle at 40% 40%, rgba(34,197,94,0.20), transparent 45%)," +
+              "radial-gradient(circle at 70% 70%, rgba(59,130,246,0.15), transparent 45%)," +
+              "linear-gradient(180deg, rgba(15,23,42,0.95), rgba(2,6,23,0.95))",
+          }}
+        />
+
+        {/* 맵 레이어 */}
+        <div className="absolute inset-0" style={{ width: vw, height: vh }}>
+          {/* 바닥(길) */}
+          <div
+            className="absolute rounded-full opacity-40"
+            style={{
+              left: 80 - camX,
+              top: 420 - camY,
+              width: 1200,
+              height: 220,
+              background: "rgba(148,163,184,0.18)",
+            }}
+          />
+          <div
+            className="absolute rounded-full opacity-35"
+            style={{
+              left: 420 - camX,
+              top: 120 - camY,
+              width: 720,
+              height: 200,
+              background: "rgba(148,163,184,0.16)",
+            }}
+          />
+
+          {/* 충돌 블록 */}
+          {TOWN_BLOCKS.map((b, i) => (
+            <div
+              key={i}
+              className="absolute rounded-lg border border-slate-700/60 bg-slate-800/30"
+              style={{ left: b.x - camX, top: b.y - camY, width: b.w, height: b.h }}
+              title="건물"
+            />
+          ))}
+
+          {/* 오브젝트(NPC/포탈) */}
+          {TOWN_OBJECTS.map((o) => (
+            <div
+              key={o.id}
+              className="absolute flex flex-col items-center justify-center rounded-xl border border-slate-600 bg-black/20 hover:bg-black/30 transition"
+              style={{ left: o.x - camX, top: o.y - camY, width: o.w, height: o.h }}
+            >
+              <div className="text-3xl">{o.emoji}</div>
+              <div className="text-[11px] text-gray-200 mt-1 font-bold">{o.label}</div>
+              <div className="text-[10px] text-gray-400">E</div>
+            </div>
+          ))}
+
+          {/* 다른 플레이어 */}
+          {(others || []).map((u) => (
+            <div
+              key={u.id}
+              className="absolute"
+              style={{ left: (u.x || 0) - 16 - camX, top: (u.y || 0) - 16 - camY }}
+            >
+              <div className="text-[10px] text-gray-200 text-center mb-1 drop-shadow">
+                {u.name || "??"}
+              </div>
+              <div className="w-8 h-8 rounded-full bg-purple-500/70 border border-purple-200/30 flex items-center justify-center shadow">
+                <span className="text-white text-sm">🙂</span>
+              </div>
+            </div>
+          ))}
+
+          {/* 내 플레이어 */}
+          <div className="absolute" style={meStyle}>
+            <div className="text-[10px] text-yellow-200 text-center mb-1 drop-shadow font-bold">
+              {player?.name || "??"}
+            </div>
+            <div className="w-8 h-8 rounded-full bg-blue-500 border border-blue-200/40 flex items-center justify-center shadow-xl">
+              <span className="text-white text-sm">🧑</span>
+            </div>
+          </div>
+        </div>
+
+        {/* ✅ 채팅 UI: 닫히면 미니(최근 3개), 열리면 전체 */}
+<div className="absolute left-3 bottom-3 w-[200px] max-w-[92vw]">
+  {!chatOpen ? (
+    // ====== 미니 뷰(닫힘) ======
+    <button
+      onClick={() => setChatOpen(true)}
+      className="w-full text-left bg-slate-900/65 border border-slate-700 rounded-lg px-3 py-2 shadow-xl hover:bg-slate-900/80 transition"
+      title="Shift로 채팅 열기"
+    >
+      <div className="flex items-center justify-between">
+        <div className="text-[11px] text-gray-300 font-bold">
+          💬 채팅 <span className="text-gray-500">(Shift로 입력)</span>
+        </div>
+        <div className="text-[10px] text-gray-400">열기</div>
+      </div>
+
+      <div className="mt-2 space-y-1">
+        {(chatMessages || []).length === 0 ? (
+          <div className="text-[11px] text-gray-500">최근 메시지가 없어요.</div>
+        ) : (
+          (chatMessages || []).slice(-3).map((m, i) => (
+            <div key={i} className="text-[11px] leading-snug truncate">
+              <span className="text-yellow-200 font-bold">{m.name || "??"}</span>
+              <span className="text-gray-500">: </span>
+              <span className="text-gray-100">{m.text}</span>
+            </div>
+          ))
+        )}
+      </div>
+    </button>
+  ) : (
+    // ====== 전체 뷰(열림) ======
+    <div className="bg-slate-900/80 border border-slate-700 rounded-lg p-2 text-xs text-gray-200 shadow-xl">
+      <div className="flex items-center justify-between mb-1">
+        <div className="text-[11px] text-gray-300">
+          💬 채팅 <span className="text-gray-500">(Enter: 전송 / Esc: 닫기)</span>
+        </div>
+        <button
+          onClick={() => { setChatOpen(false); setChatInput(""); }}
+          className="text-[10px] px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-gray-200 border border-slate-700"
+        >
+          닫기
+        </button>
+      </div>
+
+      {/* 메시지 리스트 */}
+      <div className="h-[130px] overflow-y-auto bg-black/30 rounded p-2 border border-slate-800">
+        {(chatMessages || []).length === 0 ? (
+          <div className="text-gray-500">아직 채팅이 없어요.</div>
+        ) : (
+          (chatMessages || []).slice(-30).map((m, i) => (
+            <div key={i} className="leading-snug">
+              <span className="text-yellow-200 font-bold">{m.name || "??"}</span>
+              <span className="text-gray-500">: </span>
+              <span className="text-gray-100">{m.text}</span>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* 입력창 */}
+      <div className="mt-2 flex gap-2">
+        <input
+          ref={chatInputRef}
+          value={chatInput}
+          onChange={(e) => setChatInput(e.target.value)}
+
+          // ✅ window keydown으로 튀는거 방지(유지)
+          onKeyDown={(e) => e.stopPropagation()}
+          onKeyUp={(e) => e.stopPropagation()}
+
+          placeholder="채팅 입력..."
+          className="flex-1 px-2 py-2 rounded bg-slate-800 border border-slate-700 text-gray-100 outline-none"
+        />
+        <button
+          onClick={sendChat}
+          className="px-3 py-2 rounded bg-blue-600 hover:bg-blue-500 text-white font-bold"
+        >
+          전송
+        </button>
+      </div>
+    </div>
+  )}
+</div>
+
+
+      </div>
+    </div>
+  );
+}
 
     function App(){
       const [loading,setLoading]=useState(true),[errorMsg,setErrorMsg]=useState(null),[view,setView]=useState("login"),[loginName,setLoginName]=useState(""),[loginPw,setLoginPw]=useState("");
@@ -112,6 +394,104 @@
       const [forgeTargetRarity,setForgeTargetRarity]=useState(null),[forgeMiniGame,setForgeMiniGame]=useState(null),[forgePhase,setForgePhase]=useState("ready"),[forgeResult,setForgeResult]=useState(null);
       const forgeTimerRef=useRef(null); const [forgeErrorIndex,setForgeErrorIndex]=useState(null);
       const [invTab,setInvTab]=useState("weapon"),[invSort,setInvSort]=useState("rarity");
+      const [lobbyPage, setLobbyPage] = useState("main"); // "main" | "training"
+const [townPos, setTownPos] = useState({ x: 820, y: 560, dir: "down" });
+const [others, setOthers] = useState([]); // {id,name,x,y,dir,updatedAt}
+const [sideTab, setSideTab] = useState("equip"); // "equip" | "enhance"
+const [trainingOpen, setTrainingOpen] = useState(false);
+const TRAINING_SUBJECTS = ["국어","수학","사회","과학","상식"];
+const townLastSendRef = useRef(0);
+// ✅ Town Chat
+const [chatOpen, setChatOpen] = useState(false);
+const [chatInput, setChatInput] = useState("");
+const [chatMessages, setChatMessages] = useState([]); // [{name,text,ts}]
+const chatInputRef = useRef(null);
+const chatOpenRef = useRef(false);
+useEffect(()=>{ chatOpenRef.current = chatOpen; }, [chatOpen]);
+useEffect(() => {
+  if (view === "lobby" && chatOpen) {
+    setTimeout(() => chatInputRef.current?.focus(), 0);
+  }
+}, [chatOpen, view]);
+
+
+const attemptInteract = () => {
+  const tp = townPosRef.current || townPos;
+  const meBox = { x: tp.x - 16, y: tp.y - 16, w: 32, h: 32 };
+
+  const PAD = 15;
+  const near = (obj) =>
+    intersects(meBox, { x: obj.x - PAD, y: obj.y - PAD, w: obj.w + PAD * 2, h: obj.h + PAD * 2 });
+
+  // 👇👇👇 여기! (원래 find(near) 있던 자리를 교체)
+  const myCx = tp.x;
+  const myCy = tp.y;
+
+  const candidates = TOWN_OBJECTS.filter(near);
+  const obj = candidates.length
+    ? candidates
+        .map(o => {
+          const ox = o.x + o.w / 2;
+          const oy = o.y + o.h / 2;
+          return { o, d: dist2(myCx, myCy, ox, oy) };
+        })
+        .sort((a, b) => a.d - b.d)[0].o
+    : null;
+  // 👆👆👆 여기까지
+
+  if (!obj) {
+    showMessage("근처에 상호작용 대상이 없습니다. (E 키)", "info");
+    return;
+  }
+
+  if (obj.id === "forge") { setView("forge"); return; }
+
+  if (obj.id === "quest") {
+    const e = ensureDaily(player);
+    if (e.changed) savePlayerData(e.player);
+    setQuestOpen(true);
+    return;
+  }
+
+  if (obj.id === "training") {
+    setTrainingOpen(true);
+    return;
+  }
+
+  if (obj.id === "legend") { tryEnterLegendDungeon(); return; }
+  if (obj.id === "boss") { tryEnterBoss(); return; }
+  if (obj.id === "tower") { enterTower(); return; }
+};
+
+
+
+
+// ✅ Trial Tower (시련의 탑)
+const TOWER_MAX_FLOOR = 100;
+const TOWER_REST_FLOORS = [1,20,40,60,80];              
+const TOWER_SAVE_FLOORS = [1,20,40,60,80]; 
+
+const towerCheckpointFor = (floor) => {
+  if(floor<=20) return 1;
+  if(floor<=40) return 20;
+  if(floor<=60) return 40;
+  if(floor<=80) return 60;
+  return 80; // 81~100
+};
+
+const towerSubjectFor = (floor) => {
+  if(floor<=20) return "국어(시련)";
+  if(floor<=40) return "수학(시련)";
+  if(floor<=60) return "사회(시련)";
+  if(floor<=80) return "과학(시련)";
+  const all = ["국어(시련)","수학(시련)","사회(시련)","과학(시련)","상식(시련)"];
+  return all[Math.floor(Math.random()*all.length)];
+};
+
+const [towerFloor,setTowerFloor] = useState(1);
+const [towerCheckpoint,setTowerCheckpoint] = useState(1);
+
+useEffect(() => {if (view === "lobby") setLobbyPage("main");}, [view]);
 
       useEffect(()=>{ if(!forgeMiniGame||forgePhase!=="ready") return; const timer=setTimeout(()=>{ setForgeMiniGame(prev=>{ if(!prev) return prev; return {...prev,phase:"play"}; // 🎯 실제 시작
       }); },5000); // 5초 읽기 시간
@@ -139,10 +519,288 @@
         return()=>clearInterval(forgeTimerRef.current);
       },[forgeMiniGame,forgePhase]);
 
-      const defaultPlayer={name:"모험가",level:1,exp:0,maxExp:100,hp:100,baseMaxHp:100,maxHp:100,gold:0,baseAtk:10,equippedWeapon:null,equippedArmor:null,inventory:[],solved:[],fragments:{"국어":0,"수학":0,"사회":0,"과학":0,"상식":0}};
+const defaultPlayer={name:"모험가",level:1,exp:0,maxExp:100,hp:100,baseMaxHp:100,maxHp:100,gold:0,baseAtk:10,equippedWeapon:null,equippedArmor:null,inventory:[],solved:[],fragments:{"국어":0,"수학":0,"사회":0,"과학":0,"상식":0},stones:0,dailyQuest:null,dailyQuestProgress:null,dailyQuestClaimed:null,towerFloor: 1,towerCheckpoint: 1,};
       const [player,setPlayer]=useState(defaultPlayer),[monster,setMonster]=useState(null),[currentSubject,setCurrentSubject]=useState("수학"),[currentQuestion,setCurrentQuestion]=useState(null);
       const [battleLog,setBattleLog]=useState([]),[bossStreak,setBossStreak]=useState(0),[isRespawning,setIsRespawning]=useState(false),[questions,setQuestions]=useState([]);
       const [message,setMessage]=useState(null),[accountId,setAccountId]=useState(null),[wrongAnswerModal,setWrongAnswerModal]=useState(null);
+// ✅ 채팅 문서(ref) - 단일 문서에 messages 100개 유지
+const chatDocRef = React.useMemo(() => {
+  if (!db) return null;
+  return db.collection("artifacts").doc(appId).collection("townChat").doc("global");
+}, [db, appId]);
+
+// ✅ 채팅 구독
+useEffect(() => {
+  if (view !== "lobby") return;
+  if (!chatDocRef) return;
+
+  const unsub = chatDocRef.onSnapshot((doc) => {
+    const data = doc.data() || {};
+    const msgs = Array.isArray(data.messages) ? data.messages : [];
+    setChatMessages(msgs);
+  });
+
+  return () => unsub();
+}, [view, chatDocRef]);
+// ✅ 장비 보호(2초 롱프레스)
+const protectPressRef = useRef(null);
+const protectDownAtRef = useRef(0);
+const protectTriggeredRef = useRef(false);
+const protectIsDownRef = useRef(false);
+
+const clearProtectPress = () => {
+  if (protectPressRef.current) {
+    clearTimeout(protectPressRef.current);
+    protectPressRef.current = null;
+  }
+};
+
+// ✅ 시작(2초 타이머)
+const startProtectPress = (item, e) => {
+  if (!item) return;
+  if (item.type !== "weapon" && item.type !== "armor") return;
+
+  // ✅ 마우스는 클릭(좌클릭)일 때만
+  if (e?.pointerType === "mouse" && e.buttons !== 1) return;
+
+  clearProtectPress();
+  protectIsDownRef.current = true;     // ✅ 누르기 시작
+  protectTriggeredRef.current = false;
+  protectDownAtRef.current = Date.now();
+
+  protectPressRef.current = setTimeout(() => {
+    if (!protectIsDownRef.current) return; // ✅ 이미 손 뗐으면 무시
+    protectTriggeredRef.current = true;
+    toggleProtectItem(item.id);
+    clearProtectPress();
+  }, 2000);
+};
+
+
+// ✅ 종료(손 뗄 때) - 2초를 넘겼는데 타이머가 안 터졌으면 여기서라도 토글
+const cancelProtectPress = (item) => {
+  // ✅ 지금 누르는 중이 아니면(hover/leave만 발생) 아무것도 하지 않음
+  if (!protectIsDownRef.current) return;
+
+  const held = Date.now() - (protectDownAtRef.current || 0);
+
+  // 타이머 race 보정(진짜 오래 눌렀는데 setTimeout이 못 돈 경우)
+  if (!protectTriggeredRef.current && item?.id && held >= 1950) {
+    toggleProtectItem(item.id);
+  }
+
+  protectIsDownRef.current = false;     // ✅ 누르기 종료
+  protectDownAtRef.current = 0;         // ✅ 시간 리셋 (핵심!)
+  protectTriggeredRef.current = false;  // ✅ 리셋
+  clearProtectPress();
+};
+
+
+  // ✅ 무기 보호 토글
+const toggleProtectItem = (itemId) => {
+  const newPlayer = {
+    ...player,
+    inventory: [...(player.inventory || [])],
+  };
+
+  const t = newPlayer.inventory.find(i => i.id === itemId);
+  if (!t) return;
+
+  // ✅ 무기만 보호 토글
+if (t.type !== "weapon" && t.type !== "armor") return;
+
+  t.protected = !t.protected;
+  showMessage(t.protected ? "🔒 장비 보호 ON (판매/조합 불가)" : "🔓 장비 보호 OFF", "info");
+
+  // 장착중인 참조도 최신으로
+  if (newPlayer.equippedWeapon?.id === t.id) newPlayer.equippedWeapon = t;
+  if (newPlayer.equippedArmor?.id === t.id) newPlayer.equippedArmor = t;
+
+
+  savePlayerData(newPlayer);
+};
+
+
+// ✅ presence ref
+const presenceRef = React.useMemo(() => {
+  if (!db || !accountId) return null;
+  return db.collection("artifacts").doc(appId).collection("lobbyPresence").doc(accountId);
+}, [db, appId, accountId]);
+
+
+// ✅ 이동 입력 + 충돌 처리
+// ✅ 최신 함수/좌표를 이벤트 리스너가 항상 보게 만들기 위한 ref
+const attemptInteractRef = useRef(() => {});
+const townPosRef = useRef(townPos);
+
+// townPos 최신화
+useEffect(() => { townPosRef.current = townPos; }, [townPos]);
+
+// attemptInteract 최신화 (아래에서 attemptInteract 함수 정의 후에 자동으로 연결됨)
+useEffect(() => { attemptInteractRef.current = attemptInteract; });
+
+// ✅ 이동 입력 + 충돌 처리 (IME(한글)에서도 WASD/E 동작하도록 e.code 기반)
+useEffect(() => {
+  if (view !== "lobby") return;
+
+  const keys = new Set();
+
+  const normKey = (e) => {
+    switch (e.code) {
+      case "KeyW": return "w";
+      case "KeyA": return "a";
+      case "KeyS": return "s";
+      case "KeyD": return "d";
+      case "KeyE": return "e";
+      default: return (e.key || "").toLowerCase();
+    }
+  };
+
+  const openChat = () => {
+    setChatOpen(true);
+    // ✅ 혹시 이전에 눌린 이동키가 남아있으면 멈추게
+    keys.clear();
+    setTimeout(() => chatInputRef.current?.focus(), 0);
+  };
+
+  const onDown = (e) => {
+    const k = normKey(e);
+    const isChat = chatOpenRef.current; // ✅ 최신 상태
+
+    // ✅ Shift 누르면 채팅 열기(한 번 누르면 유지)
+    if (!isChat && (e.code === "ShiftLeft" || e.code === "ShiftRight")) {
+      e.preventDefault();
+      openChat();
+      return;
+    }
+
+    // ✅ 채팅 열려있으면 이동/상호작용 완전 차단
+    if (isChat) {
+      // 이동키가 남아있으면 멈추게
+      if (["arrowup","arrowdown","arrowleft","arrowright","w","a","s","d"].includes(k)) {
+        keys.clear();
+        return; // 글자는 input이 받게 둠
+      }
+
+      if (k === "escape") {
+        e.preventDefault();
+        setChatOpen(false);
+        setChatInput("");
+        keys.clear();
+        return;
+      }
+
+      if (k === "enter") {
+        e.preventDefault();
+        sendChat();
+        return;
+      }
+
+      return;
+    }
+
+    // ===== 채팅 닫혀있을 때만 이동/상호작용 =====
+    if (["arrowup","arrowdown","arrowleft","arrowright","w","a","s","d"].includes(k)) {
+      e.preventDefault();
+      keys.add(k);
+    }
+
+    if (k === "e") {
+      e.preventDefault();
+      attemptInteractRef.current?.();
+    }
+  };
+
+  const onUp = (e) => {
+    // ✅ 채팅 열려있으면 키 상태 만지지 않음(이동 중지 유지)
+    if (chatOpenRef.current) return;
+    keys.delete(normKey(e));
+  };
+
+  window.addEventListener("keydown", onDown, { passive: false });
+  window.addEventListener("keyup", onUp);
+
+  let raf = 0;
+  const tick = () => {
+    // ✅ 채팅 중에는 아예 이동 계산 자체를 안 함
+    if (chatOpenRef.current) {
+      keys.clear();
+      raf = requestAnimationFrame(tick);
+      return;
+    }
+
+    let dx = 0, dy = 0, dir = townPosRef.current?.dir || "down";
+
+    if (keys.has("arrowup") || keys.has("w")) { dy -= TOWN.SPEED; dir = "up"; }
+    if (keys.has("arrowdown") || keys.has("s")) { dy += TOWN.SPEED; dir = "down"; }
+    if (keys.has("arrowleft") || keys.has("a")) { dx -= TOWN.SPEED; dir = "left"; }
+    if (keys.has("arrowright") || keys.has("d")) { dx += TOWN.SPEED; dir = "right"; }
+
+    if (dx || dy) {
+      setTownPos(prev => {
+        const next = {
+          ...prev,
+          dir,
+          x: Math.max(20, Math.min(TOWN.W - 20, prev.x + dx)),
+          y: Math.max(20, Math.min(TOWN.H - 20, prev.y + dy)),
+        };
+
+        const meBox = { x: next.x - 16, y: next.y - 16, w: 32, h: 32 };
+        for (const b of TOWN_BLOCKS) {
+          if (intersects(meBox, b)) return prev;
+        }
+        return next;
+      });
+    }
+
+    raf = requestAnimationFrame(tick);
+  };
+
+  raf = requestAnimationFrame(tick);
+
+  return () => {
+    cancelAnimationFrame(raf);
+    window.removeEventListener("keydown", onDown);
+    window.removeEventListener("keyup", onUp);
+  };
+}, [view]);
+
+
+// ✅ 내 위치 업로드(throttle)
+useEffect(() => {
+  if (view !== "lobby") return;
+  if (!presenceRef) return;
+
+  const now = Date.now();
+  if (now - townLastSendRef.current < 150) return;
+  townLastSendRef.current = now;
+
+  presenceRef.set({
+    name: player.name,
+    x: townPos.x,
+    y: townPos.y,
+    dir: townPos.dir,
+    updatedAt: now,
+  }, { merge: true }).catch(()=>{});
+}, [townPos, view, presenceRef, player.name]);
+
+// ✅ 다른 유저 구독
+useEffect(() => {
+  if (view !== "lobby") return;
+  if (!db) { setOthers([]); return; }
+
+  const col = db.collection("artifacts").doc(appId).collection("lobbyPresence");
+  const unsub = col.onSnapshot((snap) => {
+    const now = Date.now();
+    const list = snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(u => u.id !== accountId)
+      .filter(u => (now - (u.updatedAt||0)) <= TOWN.STALE_MS);
+    setOthers(list);
+  });
+
+  return () => unsub();
+}, [db, appId, accountId, view]);
 
       useEffect(()=>{ let isMounted=true; const savedName=localStorage.getItem("last_login_name"); if(savedName) setLoginName(savedName);
         const safetyTimer=setTimeout(()=>{ if(isMounted){ console.warn("Loading timeout"); setErrorMsg("서버 응답 시간이 초과되었습니다. (10초)"); } },10000);
@@ -159,6 +817,402 @@
       useEffect(()=>{ if(!loading){ const loader=document.getElementById("loading-screen"); if(loader) loader.style.display="none"; } },[loading]);
 
       const showMessage=(text,type)=>{ setMessage({text,type}); setTimeout(()=>setMessage(null),3000); };
+// =====================
+const sendChat = async () => {
+  const text = (chatInput || "").trim();
+  if (!text) return;
+
+  const msg = {
+    name: (player.name || "??").slice(0, 20),
+    text: text.slice(0, 200),
+    ts: Date.now(),
+  };
+
+  // ✅ Firebase 없으면 로컬로만(테스트/오프라인)
+  if (!chatDocRef || !db) {
+    setChatMessages(prev => {
+      const next = [...prev, msg].slice(-100);
+      localStorage.setItem("town_chat_local", JSON.stringify(next));
+      return next;
+    });
+    setChatInput("");
+    return;
+  }
+
+  try {
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(chatDocRef);
+      const data = snap.exists ? (snap.data() || {}) : {};
+      const prev = Array.isArray(data.messages) ? data.messages : [];
+      const next = [...prev, msg].slice(-100); // ✅ 100개 유지
+      tx.set(chatDocRef, {
+        messages: next,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+    });
+
+    setChatInput("");
+  } catch (e) {
+    console.error(e);
+    showMessage("채팅 전송 실패(네트워크/권한 확인)", "error");
+  }
+};
+// ✅ StarCatch(10강 이상 강화용)
+const [starCatchOpen, setStarCatchOpen] = useState(false);
+const [starCatchItem, setStarCatchItem] = useState(null);
+const [starCatchT, setStarCatchT] = useState(0);
+const [starCatchResult, setStarCatchResult] = useState(null);
+const starCatchRafRef = useRef(null);
+const starCatchLastRef = useRef(0);
+
+const STAR_CATCH_BONUS = 0.2;
+const STAR_WINDOW = { start: 0.45, end: 0.54 };
+const STAR_SPEED = 1.5;
+
+function stopStarCatchAnim(){
+  if (starCatchRafRef.current) cancelAnimationFrame(starCatchRafRef.current);
+  starCatchRafRef.current = null;
+}
+
+function startStarCatch(item){
+  setStarCatchItem(item);
+  setStarCatchResult(null);
+  setStarCatchT(0);
+  setStarCatchOpen(true);
+
+  starCatchLastRef.current = performance.now();
+  stopStarCatchAnim();
+
+  let dir = 1;
+  function tick(now){
+    const dt = Math.min(0.05, (now - starCatchLastRef.current) / 1000);
+    starCatchLastRef.current = now;
+
+    setStarCatchT(prev => {
+      let next = prev + dir * STAR_SPEED * dt;
+      if (next >= 1) { next = 1; dir = -1; }
+      if (next <= 0) { next = 0; dir = 1; }
+      return next;
+    });
+
+    starCatchRafRef.current = requestAnimationFrame(tick);
+  }
+
+  starCatchRafRef.current = requestAnimationFrame(tick);
+}
+
+function resolveStarCatch(caught){
+  if (!starCatchItem) return;
+  stopStarCatchAnim();
+
+  setStarCatchResult(caught ? "success" : "fail");
+
+  setTimeout(() => {
+    const bonus = caught ? STAR_CATCH_BONUS : 0;
+    enhanceItem(starCatchItem, bonus);
+    setStarCatchOpen(false);
+    setStarCatchItem(null);
+    setStarCatchResult(null);
+  }, 1500);
+};
+function closeStarCatch(){
+  stopStarCatchAnim();
+  setStarCatchOpen(false);
+  setStarCatchItem(null);
+  setStarCatchResult(null);
+}
+
+// ✅ 스타캐치 모달 (닫기 = 강화 취소)
+const StarCatchModal = () => {
+  if (!starCatchOpen || !starCatchItem) return null;
+
+  const baseRate = 0.1; // 10강 이상 기본 10%
+  const boosted = Math.min(0.95, baseRate + STAR_CATCH_BONUS);
+
+  const closeStarCatch = (e) => {
+    if (e) { e.preventDefault(); e.stopPropagation(); }
+    stopStarCatchAnim();
+    setStarCatchOpen(false);
+    setStarCatchItem(null);
+    setStarCatchResult(null);
+  };
+
+  // ✅ Esc로 닫기(=강화 취소)
+  React.useEffect(() => {
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") closeStarCatch(e);
+    };
+    window.addEventListener("keydown", onKeyDown, { passive: false });
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [starCatchOpen, starCatchItem]);
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/80 flex items-center justify-center z-[1005]"
+      onPointerDown={(e) => {
+        // ✅ 바깥(배경) 눌러서 닫히는 거 막고 싶으면 아래 두 줄만 유지
+        // (원하면 "배경 눌러 닫기"도 구현 가능)
+        e.stopPropagation();
+      }}
+    >
+      <div
+        className="bg-slate-800 border border-yellow-500 rounded-xl p-6 w-[92vw] max-w-sm shadow-2xl"
+        onPointerDown={(e) => e.stopPropagation()} // ✅ 내부 클릭이 배경으로 새지 않게
+      >
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-bold text-yellow-300">⭐ 스타캐치</h2>
+
+          {/* ✅ 닫기 버튼: onPointerDown + onClick(백업) */}
+          <button
+            type="button"
+            onPointerDown={closeStarCatch}
+            onClick={closeStarCatch}
+            className="text-xs px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-gray-100 pointer-events-auto touch-manipulation select-none"
+            title="취소"
+          >
+            닫기
+          </button>
+        </div>
+
+        <div className="text-xs text-gray-300 mb-3">
+          가운데 <b className="text-yellow-200">노란 구간</b>에 맞춰 클릭하면 확률이 올라갑니다.
+        </div>
+
+        <div className="text-[11px] text-gray-400 mb-3">
+          기본 확률: <b className="text-gray-100">{(baseRate * 100).toFixed(0)}%</b>
+          <span className="mx-2 text-gray-600">→</span>
+          성공 시: <b className="text-yellow-200">{(boosted * 100).toFixed(0)}%</b>
+        </div>
+
+        {/* 타이밍 바 */}
+        <div className="relative w-full h-4 bg-slate-700 rounded overflow-hidden border border-slate-600">
+          <div
+            className="absolute top-0 bottom-0 bg-yellow-400/60"
+            style={{
+              left: `${STAR_WINDOW.start * 100}%`,
+              width: `${(STAR_WINDOW.end - STAR_WINDOW.start) * 100}%`,
+            }}
+          />
+          <div
+            className="absolute top-0 bottom-0 w-2 bg-white"
+            style={{ left: `calc(${starCatchT * 100}% - 4px)` }}
+          />
+        </div>
+
+        {/* 결과 */}
+        {starCatchResult && (
+          <div
+            className={`mt-3 text-sm font-bold ${
+              starCatchResult === "success" ? "text-green-400" : "text-gray-300"
+            }`}
+          >
+            {starCatchResult === "success"
+              ? "성공! 확률 상승 적용 🎯"
+              : "실패! 원래 확률로 진행 😅"}
+          </div>
+        )}
+
+        <div className="mt-4 flex gap-2">
+          <button
+            type="button"
+            disabled={!!starCatchResult}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              resolveStarCatch(starCatchT >= STAR_WINDOW.start && starCatchT <= STAR_WINDOW.end);
+            }}
+            className="flex-1 py-3 rounded font-bold border pointer-events-auto"
+          >
+            지금 클릭!
+          </button>
+
+          <button
+            type="button"
+            disabled={!!starCatchResult}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              resolveStarCatch(false);
+            }}
+            className="px-4 py-3 rounded font-bold border pointer-events-auto"
+          >
+            스킵
+          </button>
+        </div>
+
+        <div className="mt-3 text-[11px] text-gray-500">
+          • 닫기/Esc: 이번 강화 자체를 취소합니다.<br />
+          • 스킵: 보너스 없이(성공 아님) 강화 진행합니다.
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
+// ✅ Daily Quest (일일 퀘스트)
+// =====================
+const todayKey=()=>{const d=new Date(),y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,"0"),dd=String(d.getDate()).padStart(2,"0");return `${y}-${m}-${dd}`;};
+const rint=(a,b)=>Math.floor(Math.random()*(b-a+1))+a;
+const makeDailyQuest=()=>({date:todayKey(),missions:{
+  kill:{target:rint(10,30),reward:{gold:rint(1000,10000),stone:rint(1,5)}},
+  streak:{target:rint(10,20),reward:{gold:rint(1000,10000),stone:rint(1,5)}},
+  boss:{target:rint(1,5),reward:{gold:rint(1000,10000),stone:rint(1,5)}}
+}});
+const initDailyProgress=()=>({kills:0,streakCur:0,streakBest:0,bossClears:0});
+const initDailyClaimed=()=>({kill:false,streak:false,boss:false});
+
+const [questOpen,setQuestOpen]=useState(false);
+const ensureDaily=(p)=>{
+  const tk=todayKey();
+  let changed=false;
+  const np={...p};
+  if(!np.dailyQuest||np.dailyQuest.date!==tk){ np.dailyQuest=makeDailyQuest(); np.dailyQuestProgress=initDailyProgress(); np.dailyQuestClaimed=initDailyClaimed(); changed=true; }
+  if(!np.dailyQuestProgress){ np.dailyQuestProgress=initDailyProgress(); changed=true; }
+  if(!np.dailyQuestClaimed){ np.dailyQuestClaimed=initDailyClaimed(); changed=true; }
+  if(typeof np.stones!=="number") { np.stones=0; changed=true; }
+  return {player:np,changed};
+};
+
+const isQuestDone=(p,key)=>{
+  const q=p.dailyQuest?.missions?.[key]; if(!q) return false;
+  const pr=p.dailyQuestProgress||initDailyProgress();
+  if(key==="kill") return (pr.kills||0)>=q.target;
+  if(key==="streak") return (pr.streakBest||0)>=q.target;
+  if(key==="boss") return (pr.bossClears||0)>=q.target;
+  return false;
+};
+
+const claimQuest=(key)=>{
+  const p0=player;
+  const {player:pp}=ensureDaily(p0);
+  if(pp.dailyQuestClaimed?.[key]) return showMessage("이미 수령한 보상입니다.","info");
+  if(!isQuestDone(pp,key)) return showMessage("아직 조건을 달성하지 못했습니다.","error");
+  const rw=pp.dailyQuest.missions[key].reward;
+  const np={...pp};
+  np.gold=(np.gold||0)+rw.gold;
+  np.stones=(np.stones||0)+rw.stone;
+  np.dailyQuestClaimed={...(np.dailyQuestClaimed||initDailyClaimed()),[key]:true};
+  savePlayerData(np);
+  showMessage(`보상 수령! +${rw.gold}G +강화석 ${rw.stone}개`,"success");
+};
+const TrainingSelectModal = () => {
+  if (!trainingOpen) return null;
+
+  const enterTraining = (subj) => {
+    setTrainingOpen(false);
+    setCurrentSubject(subj);          // ✅ 선택 과목 저장
+    showMessage(`🌲 수련의 숲 입장: ${subj}`, "success");
+
+    // ✅ 전투 화면으로 이동 후 몬스터/문제 세팅
+    setView("battle");
+    setCurrentQuestion(null);
+    setTimeout(() => {
+      // spawnMonster가 내부에서 pickQuestion을 호출함 (subject는 currentSubject 기반)
+spawnEnemy({ mode: "field", p: player, questionOverride: subj });
+    }, 0);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[999]">
+      <div className="bg-slate-800 p-5 rounded-xl border border-emerald-500 w-[92vw] max-w-md shadow-2xl">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-bold text-emerald-300">🌲 수련의 숲 - 과목 선택</h2>
+          <button
+            onClick={() => setTrainingOpen(false)}
+            className="text-xs px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-gray-100"
+          >
+            닫기
+          </button>
+        </div>
+
+        <div className="text-xs text-gray-300 mb-4">
+          선택한 과목으로 문제가 출제됩니다.
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          {TRAINING_SUBJECTS.map((s) => (
+            <button
+              key={s}
+              onClick={() => enterTraining(s)}
+              className="py-3 rounded-lg font-bold bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-300/30"
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-4 text-[11px] text-gray-400">
+          • ESC로 닫고 싶으면 말해줘. 바로 붙여줄게.
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const QuestModal=()=>{
+  if(!questOpen) return null;
+  const p=player;
+  const q=p.dailyQuest?.missions||{};
+  const pr=p.dailyQuestProgress||initDailyProgress();
+  const cl=p.dailyQuestClaimed||initDailyClaimed();
+
+  const Row=({k,title,progressText,done})=>(
+    <div className="bg-slate-900/40 border border-slate-700 rounded-lg p-3 flex items-center justify-between gap-3">
+      <div className="min-w-0">
+        <div className="font-bold text-sm text-white flex items-center gap-2">
+          {done? <span className="text-green-400">✅</span> : <span className="text-gray-400">⬜</span>}
+          <span className="truncate">{title}</span>
+        </div>
+        <div className="text-xs text-gray-300 mt-1">
+          <span className="text-blue-300 font-mono">{progressText}</span>
+          <span className="text-gray-500"> | </span>
+          <span className="text-yellow-300">보상 {q[k]?.reward?.gold||0}G</span>
+          <span className="text-gray-500"> + </span>
+          <span className="text-purple-300">강화석 {q[k]?.reward?.stone||0}</span>
+        </div>
+      </div>
+      <div className="shrink-0">
+        {done ? (cl[k] ? (
+          <span className="text-xs px-2 py-1 rounded bg-slate-700 text-gray-200">수령 완료</span>
+        ) : (
+          <button onClick={()=>claimQuest(k)} className="text-xs px-3 py-2 rounded bg-green-600 hover:bg-green-500 text-white font-bold">보상 받기</button>
+        )) : (
+          <span className="text-xs px-2 py-1 rounded bg-slate-700 text-gray-300">진행중</span>
+        )}
+      </div>
+    </div>
+  );
+
+  const doneKill=isQuestDone(p,"kill"), doneSt=isQuestDone(p,"streak"), doneBoss=isQuestDone(p,"boss");
+
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[999]">
+      <div className="bg-slate-800 p-5 rounded-xl border border-blue-500 w-[92vw] max-w-md shadow-2xl">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-bold text-blue-300">📝 오늘의 퀘스트</h2>
+          <button onClick={()=>setQuestOpen(false)} className="text-xs px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-gray-100">닫기</button>
+        </div>
+
+        <div className="text-[11px] text-gray-400 mb-3 flex justify-between">
+          <span>날짜: {p.dailyQuest?.date||todayKey()}</span>
+          <span>보유 강화석: <b className="text-purple-300">{p.stones||0}</b></span>
+        </div>
+
+        <div className="space-y-2">
+          <Row k="kill" title={`오늘 몬스터 ${q.kill?.target||0}마리 처치`} progressText={`${pr.kills||0}/${q.kill?.target||0}`} done={doneKill}/>
+          <Row k="streak" title={`연속 정답 ${q.streak?.target||0}회 달성(최고기록)`} progressText={`${pr.streakBest||0}/${q.streak?.target||0} (현재 ${pr.streakCur||0})`} done={doneSt}/>
+          <Row k="boss" title={`보스 ${q.boss?.target||0}회 클리어`} progressText={`${pr.bossClears||0}/${q.boss?.target||0}`} done={doneBoss}/>
+        </div>
+
+        <div className="mt-4 text-[11px] text-gray-400">
+          • 몬스터 처치: 일반/전설 던전 몬스터 처치 시 증가<br/>
+          • 연속 정답: 오답 시 현재 연속은 0으로 리셋, 최고 기록은 유지
+        </div>
+      </div>
+    </div>
+  );
+};
 
       const getTotalHp=(p=player)=>p.baseMaxHp+(p.equippedArmor?.hp??0);
       const getTotalAtk=(p=player)=>{ let atk=p.baseAtk; if(p.equippedWeapon) atk+=p.equippedWeapon.atk; return atk; };
@@ -166,13 +1220,19 @@
       const handleLogin=async()=>{ if(!loginName.trim()||!loginPw.trim()) return alert("입력 필요"); setLoading(true);
         const customId=`${loginName.trim()}_${loginPw.trim()}`; setAccountId(customId); localStorage.setItem("last_login_name",loginName.trim());
 
-        const safeSetPlayer=(data)=>{ const mergedPlayer={...defaultPlayer,...data};
-          // 🔥 레벨 기반 baseMaxHp 보정
-          const expectedBaseHp=100+(mergedPlayer.level-1)*20; if(!mergedPlayer.baseMaxHp||mergedPlayer.baseMaxHp<expectedBaseHp) mergedPlayer.baseMaxHp=expectedBaseHp;
-          mergedPlayer.maxHp=getTotalHp(mergedPlayer); mergedPlayer.hp=Math.min(mergedPlayer.hp,mergedPlayer.maxHp);
-          if(!mergedPlayer.inventory) mergedPlayer.inventory=[]; if(!mergedPlayer.solved) mergedPlayer.solved=[]; if(!mergedPlayer.fragments) mergedPlayer.fragments={...defaultPlayer.fragments};
-          setPlayer(mergedPlayer); return mergedPlayer;
-        };
+const safeSetPlayer=(data)=>{
+  let mergedPlayer = {...defaultPlayer, ...data};
+  mergedPlayer.inventory = Array.isArray(mergedPlayer.inventory) ? mergedPlayer.inventory : [];
+  mergedPlayer.solved = Array.isArray(mergedPlayer.solved) ? mergedPlayer.solved : [];
+  mergedPlayer.fragments = mergedPlayer.fragments || {...defaultPlayer.fragments};
+if(typeof mergedPlayer.towerFloor!=="number") mergedPlayer.towerFloor=1;
+if(typeof mergedPlayer.towerCheckpoint!=="number") mergedPlayer.towerCheckpoint=1;
+  const ensured = ensureDaily(mergedPlayer);
+  mergedPlayer = ensured.player;
+  setPlayer(mergedPlayer);
+  return mergedPlayer;
+};
+
 
         if(!db){
           const localData=localStorage.getItem("rpg_save_"+customId);
@@ -198,11 +1258,22 @@
       };
 
       const getPrevRarity=(rarity)=>rarity==="Rare"?"Common":rarity==="Unique"?"Rare":rarity==="Legend"?"Unique":rarity==="Myth"?"Legend":null;
-      const getEnhanceCost=(item)=>{ if(item.enhanceLevel>=10) return 5000; if(item.type==="weapon") return item.atk*10; if(item.type==="armor") return item.hp*1; return 0; };
+const getEnhanceCost = (item) => {
+  // +20강부터: 5000골드 + 강화석 1개
+  if (item.enhanceLevel >= 20) return { gold: 5000, stone: 1 };
+
+  // +10~+19: 5000골드(강화석 없음)
+  if (item.enhanceLevel >= 10) return { gold: 3000, stone: 0 };
+
+  // +0~+9: 기존 공식
+  if (item.type === "weapon") return { gold: item.atk * 1, stone: 0 };
+  if (item.type === "armor") return { gold: item.hp * 0.5, stone: 0 };
+  return { gold: 0, stone: 0 };
+};
 
       const FORGE_RULES={Rare:{need:10,keys:4},Unique:{need:10,keys:6},Legend:{need:10,keys:8},Myth:{need:10,keys:10}};
-      const forgeCandidates=(player.inventory||[]).filter(i=>i.type==="weapon");
-      const REQUIRED_COUNT=5;
+const forgeCandidates = (player.inventory || []).filter( i => i.type === "weapon" && !i.protected);      
+const REQUIRED_COUNT=5;
 
       const toggleForgeSelect=(item)=>setForgeSelected(prev=>prev.includes(item.id)?prev.filter(id=>id!==item.id):(prev.length>=REQUIRED_COUNT?prev:[...prev,item.id]));
       const generateKeys=(count)=>{ const chars="asdfjkl"; let result=""; for(let i=0;i<count;i++) result+=chars[Math.floor(Math.random()*chars.length)]; return result; };
@@ -258,43 +1329,159 @@
         if(missing.length>0){ showMessage(`🚫 조각 부족! (${missing.join(", ")} 조각 ${BOSS_ENTRY_COST}개 필요)`,"error"); return; }
         const newFragments={...player.fragments}; required.forEach(subj=>newFragments[subj]-=BOSS_ENTRY_COST);
         const newPlayer={...player,fragments:newFragments}; setPlayer(newPlayer); savePlayerData(newPlayer); showMessage("⚡ 조각을 사용하여 보스방에 입장합니다!","success");
-        setView("boss"); spawnMonster(true,newPlayer);
-      };
+        setView("boss");spawnEnemy({ mode: "boss", p: newPlayer });      };
 
       const tryEnterLegendDungeon=()=>{ if(player.level<40){ showMessage("🚫 전설의 던전은 레벨 40부터 입장 가능합니다!","error"); return; }
-        showMessage("🏰 전설의 던전에 입장합니다! (강력한 몬스터 주의)","success"); setView("legend"); spawnMonster(false,player,"LEGEND");
-      };
+        showMessage("🏰 전설의 던전에 입장합니다! (강력한 몬스터 주의)","success"); setView("legend"); spawnEnemy({ mode: "legend", p: player });};
+// ===== 공용 헬퍼 =====
+const rPick = (arr) => {
+  const i = Math.floor(Math.random() * arr.length);
+  return { i, v: arr[i] };
+};
 
-      const spawnMonster=(isBoss=false,targetPlayer=player,specificSubject=null)=>{ setIsRespawning(false);
-        let mName,mHp,mAtk,mImg;
-        if(isBoss){ mName="감자의 지배자 (BOSS)"; mHp=10000; mAtk=999; mImg="🥔"; setBossStreak(0); }
-        else if(specificSubject==="LEGEND"){
-  const level=targetPlayer.level; mHp=(level*12.5+10)*3; mAtk=(level*2+5)*2;
-  const types=["드래곤 나이트","고대 악마","타락한 천사","심연의 감시자"];
-  const emojis=["🐉","😈","👼","👁️"];
-  const imgs=[null,null,null,null]; 
-  const idx=Math.floor(Math.random()*types.length);
-  mName=`[전설] Lv.${level} ${types[idx]}`;
-  mImg=imgs[idx]||emojis[idx]; // ✅ 이미지 없으면 이모지 fallback
-}
- else{
-  const level=targetPlayer.level; mHp=level*12.5+10; mAtk=level*2+5;
-  const types=["간지 감자","감동 감자","메롱 감자","우는 감자","웃는 감자","코주부 감자"];
-  const emojis=["💧","👺","🐺","👹","🗿","🍄"];
+const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
 
-  // ✅ 타입 순서랑 “같은 인덱스”로 맞춰야 함
-  const imgs=[
-    "https://i.postimg.cc/Dy5jqxfh/ganji-gamja.png",      "https://i.postimg.cc/BQNYxmZ4/gamdong-gamja.png",    "https://i.postimg.cc/9F18GLXh/melong-gamja.png",                                           "https://i.postimg.cc/15MCpvR5/uneun-gamja.png",     "https://i.postimg.cc/ZKj7rwYb/usneun-gamja.png",        "https://i.postimg.cc/PrK3mSfh/kojubu-gamja.png"  
-  ];
+// ===== 몬스터 풀(스펙/표시용) =====
+const MONSTER_POOLS = {
+  field: {
+    label: "",
+    types: ["간지 감자","감동 감자","메롱 감자","우는 감자","웃는 감자","코주부 감자"],
+    emojis: ["🥔","🥔","🥔","🥔","🥔","🥔"],
+    imgs: FIELD_IMGS,
+    hp: (lvl) => lvl * 12.5 + 10,
+    atk: (lvl) => lvl * 2 + 5,
+  },
+  legend: {
+    label: "[전설]",
+    types: ["드래곤 나이트","고대 악마","타락한 천사","심연의 감시자"],
+    emojis: ["🐉","😈","👼","👁️"],
+    imgs: LEGEND_IMGS,
+    hp: (lvl) => (lvl * 12.5 + 10) * 3,
+    atk: (lvl) => (lvl * 2 + 5) * 2,
+  },
+  tower: {
+    label: "[시련]",
+    types: ["탑의 수호자","광기의 기사","심연의 망령","저주받은 감시자"],
+    emojis: ["🗿","⚔️","👻","👁️"],
+    imgs: TOWER_IMGS,
+    // 탑은 전설 스케일을 더 증폭(기존 로직 유지)
+    hp: (lvl) => Math.floor(((lvl * 12.5 + 10) * 3) * 3),
+    atk: (lvl) => Math.floor(((lvl * 2 + 5) * 2) * 5),
+  },
+};
+// ✅ 모든 전투(필드/전설/보스/탑) 몬스터 스폰 통합
+const spawnEnemy = ({
+  mode = "field",           // "field" | "legend" | "boss" | "tower"
+  p = player,               // 기준 플레이어
+  floor = null,             // tower일 때 층
+  questionOverride = null,  // training 등 과목 강제
+} = {}) => {
+  setIsRespawning(false);
 
-  const idx=Math.floor(Math.random()*types.length);
-  mName=`Lv.${level} ${types[idx]}`;
-  mImg=imgs[idx]||emojis[idx]; // ✅ 이미지 없으면 이모지 fallback
-}
+  // ----- 보스 -----
+  if (mode === "boss") {
+    const lvl = p.level || 1;
+    setBossStreak(0);
 
-        setMonster({name:mName,level:targetPlayer.level,hp:mHp,maxHp:mHp,atk:mAtk,image:mImg});
-        pickQuestion(isBoss,specificSubject==="LEGEND"?null:specificSubject,targetPlayer.solved);
-      };
+    setMonster({
+      name: `[BOSS] Lv.${lvl} 감자의 지배자`,
+      level: lvl,
+      hp: 10000,
+      maxHp: 10000,
+      atk: 999,
+      image: BOSS_IMG || null,
+      emoji: "🥔",
+    });
+
+    pickQuestion(true, null, p.solved);
+    return;
+  }
+
+  // ----- 필드/전설/탑 -----
+  const isTower = mode === "tower";
+  const lvl = isTower ? Number(floor || 1) : (p.level || 1);
+
+  const pool = MONSTER_POOLS[mode] || MONSTER_POOLS.field;
+  const { i: idx, v: typeName } = rPick(pool.types);
+
+  const emoji = pool.emojis?.[idx] || "🥔";
+  const image = (pool.imgs?.[idx]) || null;
+
+  const name = isTower
+    ? `${pool.label} ${lvl}F ${typeName}`
+    : `${pool.label} Lv.${lvl} ${typeName}`.trim();
+
+  const hp = pool.hp(lvl);
+  const atk = pool.atk(lvl);
+
+  setMonster({
+    name,
+    level: lvl,
+    hp,
+    maxHp: hp,
+    atk,
+    image,
+    emoji,
+  });
+
+  // 과목 결정(기존 pickQuestion 규칙을 그대로 활용)
+  const subject =
+    isTower ? towerSubjectFor(lvl)
+    : questionOverride || null; // legend는 null로 두면 pickQuestion에서 view==="legend"일 때 랜덤 처리 유지
+
+  pickQuestion(false, subject, p.solved);
+};
+
+
+const enterTower = () => {
+  if ((player.level || 0) < 50) {
+    showMessage("🚫 시련의 탑은 레벨 50부터 입장 가능합니다!", "error");
+    return;};
+
+  const f = Number(player.towerFloor || 1);
+  const cp = Number(player.towerCheckpoint || 1);
+
+  setTowerFloor(f);
+  setTowerCheckpoint(cp);
+  setView("tower");
+
+  // 휴식층이면 휴식 화면, 전투층이면 몬스터 스폰
+  startTowerFloor(f, player, cp);
+};
+
+const startTowerFloor = (floor, p0=player, cp0=towerCheckpoint) => {
+  const f = Math.max(1, Math.min(TOWER_MAX_FLOOR, floor));
+  const isRest = TOWER_REST_FLOORS.includes(f);
+
+  // 저장포인트 갱신(1/20/40/60/80 도달 시)
+  const newCp = (TOWER_SAVE_FLOORS.includes(f)) ? f : cp0;
+
+  setTowerFloor(f);
+  setTowerCheckpoint(newCp);
+
+  // 플레이어에도 저장(이어하기용)
+  const p = {
+    ...p0,
+    towerFloor: f,
+    towerCheckpoint: newCp,
+  };
+
+  // 휴식층: 회복 + 몬스터/문제 없음
+  if(isRest){
+    const fullHp = getTotalHp(p);
+    p.maxHp = fullHp;
+    p.hp = fullHp;
+    savePlayerData(p);
+    setMonster(null);
+    setCurrentQuestion(null);
+    setIsRespawning(false);
+    return;
+  }
+
+  // 전투층
+spawnEnemy({ mode: "tower", p, floor: f });
+};
+
 
       const pickQuestion=(isBoss=false,specificSubject=null,solvedOverride=null)=>{ let subject=specificSubject||currentSubject; if(isBoss) subject="보스"; if(view==="legend") subject=["국어","수학","사회","과학","상식"][Math.floor(Math.random()*5)];
         const safeQuestions=questions.length>0?questions:MOCK_QUESTIONS;
@@ -314,87 +1501,372 @@
         setCurrentQuestion(q);
       };
 
-      const tryDropFragment=(playerToUpdate,subject)=>{ if(subject==="보스"||subject==="상식") return;
+      const tryDropFragment=(playerToUpdate,subject)=>{if (view === "tower") return; if(subject==="보스"||subject==="상식") return;
         // [수정] 전설 던전에서도 조각 드롭 (확률 50%)
         let rate=FRAGMENT_DROP_RATE; if(view==="legend") rate=0.5;
         if(Math.random()<rate){ const newFragments={...playerToUpdate.fragments}; newFragments[subject]=(newFragments[subject]||0)+1; playerToUpdate.fragments=newFragments; showMessage(`🧩 [${subject}의 조각]을 획득했습니다!`,"success"); }
       };
+const tryDropStone = (playerToUpdate) => {
+  if (view !== "tower") return; // ✅ 탑에서만 드롭
+  if (Math.random() < STONE_DROP_RATE) {
+    playerToUpdate.stones = (playerToUpdate.stones || 0) + 1;
+    showMessage("🪨 강화석 1개를 획득했습니다!", "success");
+  }
+};
+const tryDropItem = (playerToUpdate) => {
+  const roll = Math.random();
+  let rarity = null;
 
-      const tryDropItem=(playerToUpdate)=>{ const roll=Math.random(); let rarity=null;
-        if(view==="legend"){
-          // [수정] 3. 전설의 던전 아이템 드롭 확률
-          // 신화: 0.1%, 전설: 1.1%, 유니크: 21%, 희귀: 31%, 꽝: 나머지
-          if(roll<0.001) rarity="Myth"; else if(roll<0.001+0.01) rarity="Legend"; else if(roll<0.001+0.01+0.20) rarity="Unique"; else if(roll<0.001+0.01+0.20+0.30) rarity="Rare";
-          // 나머지는 null (꽝, 일반 아이템 없음)
-        } else {
-          // 일반 필드 확률
-          if(roll<RARITY_RATES.Myth) rarity="Myth";
-          else if(roll<RARITY_RATES.Legend+RARITY_RATES.Myth) rarity="Legend";
-          else if(roll<RARITY_RATES.Unique+RARITY_RATES.Legend) rarity="Unique";
-          else if(roll<RARITY_RATES.Rare+RARITY_RATES.Unique) rarity="Rare";
-          else if(roll<RARITY_RATES.Common+RARITY_RATES.Rare) rarity="Common";
-        }
-        if(rarity){
-          const range=ITEM_RANGES[rarity];
-          const isArmor=Math.random()<0.4; // 40% 확률로 갑옷
-          let newItem;
-          if(isArmor) newItem={id:Date.now()+Math.random(),name:`${rarity} 갑옷`,rarity,hp:ARMOR_BASE_HP[rarity],value:range.price,enhanceLevel:0,type:"armor"};
-          else { const atk=Math.floor(Math.random()*(range.max-range.min+1))+range.min; newItem={id:Date.now()+Math.random(),name:`${rarity} 검`,rarity,atk,value:range.price,enhanceLevel:0,type:"weapon"}; }
-          playerToUpdate.inventory.push(newItem); showMessage(`[${rarity}] 아이템 획득!`,"success");
-        }
-      };
+  // ✅ 시련의 탑
+  if (view === "tower") {
+    if (roll < TOWER_DROP_RATES.Myth) rarity = "Myth";
+    else if (roll < TOWER_DROP_RATES.Myth + TOWER_DROP_RATES.Legend) rarity = "Legend";
+    else if (roll < TOWER_DROP_RATES.Myth + TOWER_DROP_RATES.Legend + TOWER_DROP_RATES.Unique) rarity = "Unique";
+    // 나머지: 드롭 없음
 
-      const dropBossReward=(playerToUpdate)=>{ const roll=Math.random(); let rarity;
-        if(roll<0.005) rarity="Myth"; else if(roll<0.05) rarity="Legend"; else rarity="Unique";
-        const range=ITEM_RANGES[rarity];
-        const atk=Math.floor(Math.random()*(range.max-range.min+1))+range.min;
-        const newItem={id:Date.now().toString(),name:`감자 슬레이어 (${rarity})`,rarity,atk,value:range.price*2,enhanceLevel:0,type:"weapon"};
-        playerToUpdate.inventory.push(newItem); showMessage(`보스 보상: ${newItem.name} 획득!`,"success");
-      };
+  // ✅ 전설의 던전
+  } else if (view === "legend") {
+    if (roll < LEGEND_DROP_RATES.Legend) rarity = "Legend";
+    else if (roll < LEGEND_DROP_RATES.Legend + LEGEND_DROP_RATES.Unique) rarity = "Unique";
+    else if (roll < LEGEND_DROP_RATES.Legend + LEGEND_DROP_RATES.Unique + LEGEND_DROP_RATES.Rare) rarity = "Rare";
+    // 나머지: 드롭 없음 (Myth 없음)
 
-      const handleAnswer=(idx)=>{ if(wrongAnswerModal) return; if(!monster||!currentQuestion||isRespawning) return;
-        const isCorrect=idx===currentQuestion.answer;
-        const newPlayer={...player,inventory:[...(player.inventory||[])],solved:[...(player.solved||[])],fragments:{...(player.fragments||{})}};
-        let logMsg="";
-        if(isCorrect){
-          if(currentQuestion.id!==undefined&&!newPlayer.solved.includes(currentQuestion.id)) newPlayer.solved.push(currentQuestion.id);
-          if(view==="boss"){
-            const newStreak=bossStreak+1; setBossStreak(newStreak); logMsg=`정답! (${newStreak}/10)`;
-            if(newStreak>=10){ logMsg="보스 토벌 성공!"; dropBossReward(newPlayer); setMonster(null); setView("lobby"); }
-            else pickQuestion(true,null,newPlayer.solved);
-          } else {
-            const isCrit=Math.random()<0.2; let dmg=getTotalAtk(newPlayer);
-            if(isCrit){ dmg*=2; logMsg=`크리티컬! ${dmg} 피해!`; } else logMsg=`정답! ${dmg} 피해.`;
-            const newMonsterHp=monster.hp-dmg;
-            tryDropItem(newPlayer); tryDropFragment(newPlayer,currentQuestion.subject);
-            if(newMonsterHp<=0){
-              // [수정] 4. 골드 획득량 3배 (전설 던전도 기본 3배 적용)
-              const rewardMultiplier=view==="legend"?3:1;
-              const expGain=(20+(newPlayer.level*10))*rewardMultiplier;
-              const goldGain=((Math.floor(Math.random()*50)+10)*3)*rewardMultiplier;
-              newPlayer.exp+=expGain; newPlayer.gold+=goldGain; logMsg=`처치! +${expGain}XP +${goldGain}G`;
-              if(newPlayer.exp>=newPlayer.maxExp){
-                newPlayer.level+=1; newPlayer.exp-=newPlayer.maxExp; newPlayer.maxExp=Math.floor(newPlayer.maxExp*1.1);
-                newPlayer.baseMaxHp+=20; newPlayer.maxHp=getTotalHp(newPlayer); newPlayer.hp=newPlayer.maxHp;
-                newPlayer.baseAtk+=3; logMsg+=" ✨ 레벨 업!";
-              }
-              setMonster(null); setIsRespawning(true); setTimeout(()=>spawnMonster(false,newPlayer,view==="legend"?"LEGEND":null),1500);
-            } else { setMonster({...monster,hp:newMonsterHp}); pickQuestion(false,view==="legend"?"LEGEND":null,newPlayer.solved); }
-          }
-        } else {
-          const dmg=Math.floor(monster.atk*0.8); newPlayer.hp-=dmg; logMsg=`오답... ${dmg} 피해.`;
-          setWrongAnswerModal(`정답은 "${currentQuestion.options[currentQuestion.answer]}" 입니다.`); logMsg=`오답... ${dmg} 피해.`;
-          if(newPlayer.hp<=0){ newPlayer.hp=newPlayer.maxHp; const lostGold=Math.floor(newPlayer.gold*0.5); newPlayer.gold-=lostGold; logMsg="사망... 골드 절반 소실."; setMonster(null); setView("lobby"); }
-          else pickQuestion(view==="boss"||view==="legend",view==="legend"?"LEGEND":null,newPlayer.solved);
-        }
-        setBattleLog(prev=>[logMsg,...prev].slice(0,5)); savePlayerData(newPlayer);
-      };
+  // ✅ 수련의 숲(=일반 필드)
+  } else {
+    if (roll < RARITY_RATES.Unique) rarity = "Unique";
+    else if (roll < RARITY_RATES.Unique + RARITY_RATES.Rare) rarity = "Rare";
+    else if (roll < RARITY_RATES.Unique + RARITY_RATES.Rare + RARITY_RATES.Common) rarity = "Common";
+    // 나머지: 드롭 없음 (Legend/Myth 없음)
+  }
 
-      const sellItem=(itemId)=>{ const idx=(player.inventory||[]).findIndex(i=>i.id===itemId); if(idx===-1) return;
-        const newPlayer={...player,inventory:[...player.inventory]}; const item=newPlayer.inventory[idx];
-        if(newPlayer.equippedWeapon?.id===itemId) newPlayer.equippedWeapon=null;
-        newPlayer.gold+=item.value; newPlayer.inventory.splice(idx,1); savePlayerData(newPlayer); showMessage(`판매 완료 +${item.value}G`,"success");
-      };
+  if (rarity) {
+    const range = ITEM_RANGES[rarity];
+    const isArmor = Math.random() < 0.1; // 10% 확률로 갑옷
+    let newItem;
+
+    if (isArmor) {
+      newItem = { id: Date.now() + Math.random(), name: `${rarity} 갑옷`, rarity, hp: ARMOR_BASE_HP[rarity], value: range.price, enhanceLevel: 0, type: "armor" };
+    } else {
+      const atk = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
+      newItem = { id: Date.now() + Math.random(), name: `${rarity} 검`, rarity, atk, value: range.price, enhanceLevel: 0, type: "weapon" };
+    }
+
+    playerToUpdate.inventory.push(newItem);
+    showMessage(`[${rarity}] 아이템 획득!`, "success");
+  }
+};
+// ✅ 보스 클리어 조건(레벨 구간별 필요 연속 정답 수)
+// 10~19:10, 20~29:11, 30~39:12 ... 계속 증가
+const getBossNeed = (lvl) => {
+  const base = 10;
+  if (lvl < 10) return base;
+  return base + Math.max(0, Math.floor((lvl - 10) / 10));
+};
+
+const dropBossReward = (playerToUpdate, lvl = (playerToUpdate.level||1)) => {
+  let rarity;
+
+  if (lvl <= 30) {
+    rarity = "Unique";
+  } else if (lvl < 100) {   // ✅ 31~99
+    rarity = "Legend";
+  } else {
+    // ✅ 기존 보스 보상 확률 유지
+    const roll = Math.random();
+    if (roll < 0.005) rarity = "Myth";
+    else if (roll < 0.05) rarity = "Legend";
+    else rarity = "Unique";
+  }
+
+  const range = ITEM_RANGES[rarity];
+  const atk = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
+
+  const newItem = {
+    id: Date.now().toString(),
+    name: `감자 슬레이어 (${rarity})`,
+    rarity,
+    atk,
+    value: range.price * 2,
+    enhanceLevel: 0,
+    type: "weapon"
+  };
+
+  playerToUpdate.inventory.push(newItem);
+  showMessage(`보스 보상: ${newItem.name} 획득!`, "success");
+};
+
+
+const handleAnswer = (idx) => {
+  if (wrongAnswerModal) return;
+  if (!monster || !currentQuestion || isRespawning) return;
+
+  // ✅ 오늘 퀘스트 필드 보정
+  const ensured = ensureDaily(player);
+  const baseP = ensured.player;
+  if (ensured.changed) setPlayer(baseP);
+
+  // ✅ newPlayer는 baseP 기준으로 복사
+  const newPlayer = {
+    ...baseP,
+    inventory: [...(baseP.inventory || [])],
+    solved: [...(baseP.solved || [])],
+    fragments: { ...(baseP.fragments || {}) },
+    dailyQuest: baseP.dailyQuest,
+    dailyQuestProgress: { ...(baseP.dailyQuestProgress || initDailyProgress()) },
+    dailyQuestClaimed: { ...(baseP.dailyQuestClaimed || initDailyClaimed()) },
+    stones: (typeof baseP.stones === "number") ? baseP.stones : 0,
+  };
+
+  const isCorrect = idx === currentQuestion.answer;
+  let logMsg = "";
+
+  // ✅ 연속정답 갱신(일일퀘)
+  if (isCorrect) {
+    newPlayer.dailyQuestProgress.streakCur = (newPlayer.dailyQuestProgress.streakCur || 0) + 1;
+    newPlayer.dailyQuestProgress.streakBest = Math.max(
+      newPlayer.dailyQuestProgress.streakBest || 0,
+      newPlayer.dailyQuestProgress.streakCur || 0
+    );
+  } else {
+    newPlayer.dailyQuestProgress.streakCur = 0;
+  }
+
+  // =========================
+  // ✅ 정답 처리
+  // =========================
+  if (isCorrect) {
+    // solved 기록
+    if (currentQuestion.id !== undefined && !newPlayer.solved.includes(currentQuestion.id)) {
+      newPlayer.solved.push(currentQuestion.id);
+    }
+
+    // ✅ 보스는 별도 처리 후 종료(return)
+    if (view === "boss") {
+      const need = getBossNeed(newPlayer.level);
+      const newStreak = bossStreak + 1;
+      setBossStreak(newStreak);
+
+      logMsg = `정답! (${newStreak}/${need})`;
+
+      if (newStreak >= need) {
+        logMsg = "보스 토벌 성공!";
+        dropBossReward(newPlayer, newPlayer.level);
+
+        // ✅ 일일퀘 보스 클리어 +1
+        newPlayer.dailyQuestProgress.bossClears =
+          (newPlayer.dailyQuestProgress.bossClears || 0) + 1;
+
+        setMonster(null);
+        setView("lobby");
+      } else {
+        pickQuestion(true, null, newPlayer.solved);
+      }
+
+      setBattleLog((prev) => [logMsg, ...prev].slice(0, 5));
+      savePlayerData(newPlayer);
+      return; // ✅ boss만 return
+    }
+
+    // ✅ 일반/전설/탑 전투 (정답 = 플레이어 공격)
+    const isCrit = Math.random() < 0.2;
+    let dmg = getTotalAtk(newPlayer);
+    if (isCrit) {
+      dmg *= 2;
+      logMsg = `크리티컬! ${dmg} 피해!`;
+    } else {
+      logMsg = `정답! ${dmg} 피해.`;
+    }
+
+    const newMonsterHp = monster.hp - dmg;
+
+    // ✅ 아이템/조각 드롭 시도(기존 로직 유지)
+    tryDropItem(newPlayer);
+    tryDropFragment(newPlayer, currentQuestion.subject);
+
+    // ✅ 몬스터 처치
+    if (newMonsterHp <= 0) {
+      // ✅ 일일퀘 처치 +1
+      newPlayer.dailyQuestProgress.kills = (newPlayer.dailyQuestProgress.kills || 0) + 1;
+
+      const rewardMultiplier = view === "legend" ? 3 :  view === "tower"  ? 5 : 1;
+      const expGain = (20 + (newPlayer.level * 10)) * rewardMultiplier;
+      const goldGain = ((Math.floor(Math.random() * 50) + 10) * 3) * rewardMultiplier;
+
+      newPlayer.exp += expGain;
+      newPlayer.gold += goldGain;
+      logMsg = `처치! +${expGain}XP +${goldGain}G`;
+
+      // ✅ 레벨업
+      if (newPlayer.exp >= newPlayer.maxExp) {
+        newPlayer.level += 1;
+        newPlayer.exp -= newPlayer.maxExp;
+        newPlayer.maxExp = Math.floor(newPlayer.maxExp * 1.1);
+        newPlayer.baseMaxHp += 20;
+        newPlayer.maxHp = getTotalHp(newPlayer);
+        newPlayer.hp = newPlayer.maxHp;
+        newPlayer.baseAtk += 3;
+        logMsg += " ✨ 레벨 업!";
+      }
+
+     // ✅ 시련의 탑: 다음 층 처리
+if (view === "tower") {
+  tryDropStone(newPlayer);
+  const next = towerFloor + 1;
+
+  if (next > TOWER_MAX_FLOOR) {
+    // ✅ 100층 클리어 보상: 엑스칼리버(신화) ATK 5000 고정
+    const excalibur = {
+      id: (Date.now() + Math.random()).toString(),
+      name: "엑스칼리버",
+      rarity: "Myth",
+      atk: 5000,
+      value: (ITEM_RANGES?.Myth?.price || 50000) * 2, // 판매가(원하면 조정)
+      enhanceLevel: 0,
+      type: "weapon",
+    };
+    newPlayer.inventory.push(excalibur);
+    showMessage("🏆 100층 클리어 보상! [엑스칼리버] 획득!", "success");
+
+    logMsg = "🎉 시련의 탑 100층 클리어! 엑스칼리버 획득!";
+    newPlayer.towerFloor = 1;
+    newPlayer.towerCheckpoint = 1;
+
+    setMonster(null);
+    setView("lobby");
+
+    setBattleLog((prev) => [logMsg, ...prev].slice(0, 5));
+    savePlayerData(newPlayer);
+    return;
+  } else {
+    setMonster(null);
+    setIsRespawning(true);
+    setTimeout(() => startTowerFloor(next, newPlayer, newPlayer.towerCheckpoint), 1200);
+    newPlayer.towerFloor = next;
+
+    setBattleLog((prev) => [logMsg, ...prev].slice(0, 5));
+    savePlayerData(newPlayer);
+    return;
+  }
+}
+
+      // ✅ 일반/전설: 리스폰
+      setMonster(null);
+      setIsRespawning(true);
+      setTimeout(() => {spawnEnemy({ mode: (view === "legend" ? "legend" : "field"), p: newPlayer });}, 1500);
+    } else {
+      // ✅ 생존: 몬스터 HP 갱신 + 다음 문제
+      setMonster({ ...monster, hp: newMonsterHp });
+      pickQuestion(false, view === "legend" ? "LEGEND" : null, newPlayer.solved);
+    }
+
+    setBattleLog((prev) => [logMsg, ...prev].slice(0, 5));
+    savePlayerData(newPlayer);
+    return;
+  }
+
+  // =========================
+  // ✅ 오답 처리
+if (view === "boss") {
+  // 보스는 오답 즉시 퇴장(원래 규칙)
+  setBossStreak(0);
+
+  logMsg = "❌ 보스전 오답! 로비로 퇴장합니다.";
+  setWrongAnswerModal(`정답은 "${currentQuestion.options[currentQuestion.answer]}" 입니다.`);
+
+  setMonster(null);
+  setView("lobby");
+
+  setBattleLog((prev) => [logMsg, ...prev].slice(0, 5));
+  savePlayerData(newPlayer);
+  return;
+}
+  // =========================
+  const wrongMul =
+    view === "tower" ? 3 :
+    view === "legend" ? 2 :
+    1.2;
+
+  const dmg = Math.floor(monster.atk * wrongMul);
+  newPlayer.hp -= dmg;
+  logMsg = `오답... ${dmg} 피해.`;
+  setWrongAnswerModal(`정답은 "${currentQuestion.options[currentQuestion.answer]}" 입니다.`);
+
+  // ✅ 사망 처리
+  if (newPlayer.hp <= 0) {
+    // ✅ 시련의 탑 사망
+    if (view === "tower") {
+      tryDropItem(newPlayer);
+      tryDropFragment(newPlayer, currentQuestion.subject);
+
+      const back = towerCheckpointFor(towerFloor);
+
+      const fullHp = getTotalHp(newPlayer);
+      newPlayer.maxHp = fullHp;
+      newPlayer.hp = fullHp;
+
+      newPlayer.towerFloor = back;
+      newPlayer.towerCheckpoint = back;
+
+      logMsg = `💀 사망! ${towerFloor}층 → 저장포인트 ${back}층으로 후퇴`;
+
+      setMonster(null);
+      setCurrentQuestion(null);
+      setIsRespawning(false);
+
+      setTowerFloor(back);
+      setTowerCheckpoint(back);
+      setView("tower");
+
+      setBattleLog((prev) => [logMsg, ...prev].slice(0, 5));
+      savePlayerData(newPlayer);
+
+      startTowerFloor(back, newPlayer, back);
+      return;
+    }
+
+    // ✅ 일반/전설 사망: 골드 절반 소실 + 로비
+    newPlayer.hp = newPlayer.maxHp;
+    const lostGold = Math.floor(newPlayer.gold * 0.5);
+    newPlayer.gold -= lostGold;
+
+    logMsg = "사망... 골드 절반 소실.";
+    setMonster(null);
+    setView("lobby");
+  } else {
+    // ✅ 생존: 다음 문제
+    pickQuestion(view === "boss" || view === "legend", view === "legend" ? "LEGEND" : null, newPlayer.solved);
+  }
+
+  setBattleLog((prev) => [logMsg, ...prev].slice(0, 5));
+  savePlayerData(newPlayer);
+};
+
+
+
+
+      const sellItem = (itemId) => {
+  const idx = (player.inventory || []).findIndex(i => i.id === itemId);
+  if (idx === -1) return;
+
+  const item = (player.inventory || [])[idx];
+  if (item?.protected) {
+    showMessage("🔒 보호된 장비는 판매할 수 없습니다.", "error");
+    return;
+  }
+
+  const newPlayer = { ...player, inventory: [...player.inventory] };
+  const target = newPlayer.inventory[idx]; // ✅ 이름 변경
+
+  if (newPlayer.equippedWeapon?.id === itemId) newPlayer.equippedWeapon = null;
+  if (newPlayer.equippedArmor?.id === itemId) newPlayer.equippedArmor = null; // ✅ 갑옷도 안전하게
+
+  newPlayer.gold += target.value;
+  newPlayer.inventory.splice(idx, 1);
+
+  savePlayerData(newPlayer);
+  showMessage(`판매 완료 +${target.value}G`, "success");
+};
+
 
       const equipItem=(item)=>{ const newPlayer={...player};
         if(item.type==="weapon") newPlayer.equippedWeapon=item;
@@ -405,26 +1877,69 @@
         savePlayerData(newPlayer);
       };
 
-      const enhanceItem=(item)=>{ if(item.enhanceLevel>=99) return showMessage("최대 강화 상태","info");
-        const cost=getEnhanceCost(item);
-        const successRate=item.enhanceLevel>=10?0.1:ENHANCE_RATES[item.enhanceLevel];
-        if(player.gold<cost) return showMessage("골드 부족!","error");
-        const newPlayer={...player,inventory:[...player.inventory],gold:player.gold-cost};
-        const target=newPlayer.inventory.find(i=>i.id===item.id); if(!target) return;
-        if(Math.random()<successRate){
-          if(target.type==="weapon"){ const inc=Math.floor(target.atk*0.1); target.atk+=inc; }
-          if(target.type==="armor"){ const inc=Math.floor(target.hp*0.1); target.hp+=inc;
-            // 장착 중인 갑옷이면 HP 즉시 반영
-            if(newPlayer.equippedArmor?.id===target.id){ const oldTotalHp=newPlayer.maxHp, newTotalHp=getTotalHp(newPlayer);
-              newPlayer.maxHp=newTotalHp; newPlayer.hp=Math.min(newPlayer.hp+(newTotalHp-oldTotalHp),newTotalHp);
-            }
-          }
-          target.enhanceLevel+=1; showMessage(`강화 성공! +${target.enhanceLevel}`,"success");
-        } else showMessage("강화 실패...","error");
-        if(newPlayer.equippedWeapon?.id===target.id) newPlayer.equippedWeapon=target;
-        if(newPlayer.equippedArmor?.id===target.id) newPlayer.equippedArmor=target;
-        savePlayerData(newPlayer);
-      };
+   const enhanceItem = (item, bonusRate = 0) => {
+  if (item.enhanceLevel >= 99) return showMessage("최대 강화 상태", "info");
+
+  const cost = getEnhanceCost(item); // {gold, stone}
+  const baseRate = item.enhanceLevel >= 10 ? 0.1 : ENHANCE_RATES[item.enhanceLevel];
+  const successRate = Math.min(0.95, baseRate + bonusRate); // ✅ 보너스 적용(최대 95% 캡)
+
+  // ✅ 재화 체크
+  if (player.gold < cost.gold) return showMessage("골드 부족!", "error");
+  if ((cost.stone || 0) > 0 && (player.stones || 0) < cost.stone) {
+    return showMessage("강화석 부족!", "error");
+  }
+
+  // ✅ 재화 차감 (골드 + 강화석)
+  const newPlayer = {
+    ...player,
+    inventory: [...player.inventory],
+    gold: player.gold - cost.gold,
+    stones: (player.stones || 0) - (cost.stone || 0),
+  };
+
+  const target = newPlayer.inventory.find(i => i.id === item.id);
+  if (!target) return;
+
+  if (Math.random() < successRate) {
+    if (target.type === "weapon") {
+      const inc = Math.floor(target.atk * 0.1);
+      target.atk += inc;
+    }
+    if (target.type === "armor") {
+      const inc = Math.floor(target.hp * 0.1);
+      target.hp += inc;
+
+      if (newPlayer.equippedArmor?.id === target.id) {
+        const oldTotalHp = newPlayer.maxHp;
+        const newTotalHp = getTotalHp(newPlayer);
+        newPlayer.maxHp = newTotalHp;
+        newPlayer.hp = Math.min(newPlayer.hp + (newTotalHp - oldTotalHp), newTotalHp);
+      }
+    }
+
+    target.enhanceLevel += 1;
+
+    // ✅ 메시지에 확률 표시(10강 이상에서만 스타캐치 보너스가 의미 있음)
+    if (target.enhanceLevel >= 10) {
+      showMessage(`강화 성공! +${target.enhanceLevel} (확률 ${(successRate*100).toFixed(0)}%)`, "success");
+    } else {
+      showMessage(`강화 성공! +${target.enhanceLevel}`, "success");
+    }
+  } else {
+    if (target.enhanceLevel >= 10) {
+      showMessage(`강화 실패... (확률 ${(successRate*100).toFixed(0)}%)`, "error");
+    } else {
+      showMessage("강화 실패...", "error");
+    }
+  }
+
+  if (newPlayer.equippedWeapon?.id === target.id) newPlayer.equippedWeapon = target;
+  if (newPlayer.equippedArmor?.id === target.id) newPlayer.equippedArmor = target;
+
+  savePlayerData(newPlayer);
+};
+
 
       // ✅ 아이템 정렬 우선순위
       const RARITY_ORDER={Myth:0,Legend:1,Unique:2,Rare:3,Common:4};
@@ -488,10 +2003,23 @@
             {sorted.length===0?(
               <div className="text-center text-gray-500 py-10">표시할 아이템이 없습니다.</div>
             ):sorted.map(item=>(
-              <div key={item.id} className="bg-slate-700/50 p-2 rounded flex justify-between items-center border border-slate-600">
+<div
+  key={item.id}
+  className="bg-slate-700/50 p-2 rounded flex justify-between items-center border border-slate-600"
+  onPointerDown={(e) => startProtectPress(item, e)}
+  onPointerUp={() => cancelProtectPress(item)}
+  onPointerCancel={() => cancelProtectPress(item)}
+  onPointerLeave={() => cancelProtectPress(item)}
+>
                 <div>
                   <div className={`font-bold text-sm ${RARITY_COLORS[item.rarity]}`}>
                     {item.name} {item.enhanceLevel>0&&`+${item.enhanceLevel}`}
+                     {/* ✅ 보호 표시 */}
+  {item.protected && (
+    <span className="ml-2 text-[10px] bg-slate-900/60 text-yellow-200 px-1 rounded align-middle border border-yellow-400/40">
+      🔒
+    </span>
+  )}
                     {/* ✅ 장착(E) 표시 */}
                     {isEquippedItem(item,player)&&(<span className="ml-2 text-[10px] bg-blue-600 text-white px-1 rounded align-middle">E</span>)}
                   </div>
@@ -502,11 +2030,31 @@
                 <div className="flex gap-1">
                   {!isEnhance?(
                     <>
-                      <button onClick={()=>equipItem(item)} className="bg-blue-700 px-2 py-1 rounded text-[10px] hover:bg-blue-600 text-white">장착</button>
-                      <button onClick={()=>sellItem(item.id)} className="bg-red-900/50 px-2 py-1 rounded text-[10px] hover:bg-red-800 text-red-200">판매</button>
+                      <button  onPointerDown={(e)=>e.stopPropagation()} onClick={()=>equipItem(item)} className="bg-blue-700 px-2 py-1 rounded text-[10px] hover:bg-blue-600 text-white">장착</button>
+<button
+  disabled={!!item.protected}
+  onClick={(e) => { e.stopPropagation(); sellItem(item.id); }}
+  className={`bg-red-900/50 px-2 py-1 rounded text-[10px] text-red-200 border border-transparent
+    ${item.protected ? "opacity-40 cursor-not-allowed" : "hover:bg-red-800"}`}
+>
+  판매
+</button>
                     </>
                   ):(
-                    <button onClick={()=>enhanceItem(item)} className="bg-yellow-700 px-2 py-1 rounded text-[10px] hover:bg-yellow-600 flex items-center gap-1 text-white"><Icons.Hammer size={10}/> {getEnhanceCost(item)}G</button>
+<button
+  onClick={() => {
+    if ((item.enhanceLevel || 0) >= 10) startStarCatch(item); // ✅ 10강 이상 스타캐치
+    else enhanceItem(item);                                   // ✅ 0~9강은 바로 강화
+  }}
+  className="bg-yellow-700 px-2 py-1 rounded text-[10px] hover:bg-yellow-600 flex items-center gap-1 text-white"
+>
+
+  <Icons.Hammer size={10}/>
+  {(() => {
+    const c = getEnhanceCost(item);
+    return c.stone > 0 ? `${c.gold}G + 강화석 ${c.stone}` : `${c.gold}G`;
+  })()}
+</button>
                   )}
                 </div>
               </div>
@@ -516,14 +2064,24 @@
       };
 
       const renderForge=()=>(
-        <div className="p-4 space-y-4">
-          <h2 className="text-xl font-bold text-orange-300">🔨 대장간</h2>
-          <div className="text-sm text-gray-300">같은 무기 10개를 조합해 상위 무기를 제작할 수 있습니다.</div>
+         <div className="p-4 space-y-4">
+    {/* ✅ 헤더 + 닫기 */}
+    <div className="flex items-center justify-between">
+      <h2 className="text-xl font-bold text-orange-300">🔨 대장간</h2>
+      <button
+        onClick={() => setView("lobby")}
+        className="text-xs px-3 py-2 rounded bg-slate-700 hover:bg-slate-600 border border-slate-600 text-gray-100"
+      >
+        닫기
+      </button>
+    </div>
+
+    <div className="text-sm text-gray-300">같은 무기 10개를 조합해 상위 무기를 제작할 수 있습니다.</div>
           {/* 무기 선택 */}
           <div className="bg-slate-800 p-3 rounded border border-slate-600">
             <p className="text-xs text-gray-400 mb-2">무기 선택 ({forgeSelected.length}/{REQUIRED_COUNT})</p>
             {forgeCandidates.length===0&&(<div className="text-gray-500 text-sm text-center py-4">조합 가능한 무기가 없습니다</div>)}
-            <div className="grid grid-cols-2 gap-2">{forgeCandidates.map(item=>(
+            <div className="grid grid-cols-5 gap-2">{forgeCandidates.map(item=>(
               <button key={item.id} onClick={()=>toggleForgeSelect(item)} className={`p-2 rounded border text-xs text-left transition ${forgeSelected.includes(item.id)?"bg-orange-700 border-orange-400":"bg-slate-700 border-slate-600 hover:bg-slate-600"}`}>
                 <div className={`font-bold ${RARITY_COLORS[item.rarity]}`}>{item.name}</div><div className="text-gray-300">ATK {item.atk}</div>
               </button>
@@ -532,7 +2090,7 @@
           {/* 목표 등급 선택 */}
           <div className="bg-slate-800 p-3 rounded border border-slate-600">
             <p className="text-xs text-gray-400 mb-2">제작 목표 등급</p>
-            <div className="grid grid-cols-2 gap-2">{["Unique","Legend","Myth"].map(rarity=>(
+            <div className="grid grid-cols-3 gap-2">{["Unique","Legend","Myth"].map(rarity=>(
               <button key={rarity} onClick={()=>startForge(rarity)} className="bg-orange-700 hover:bg-orange-600 py-2 rounded text-sm font-bold">{rarity} 제작</button>
             ))}</div>
           </div>
@@ -612,7 +2170,9 @@
               </div>
             </div>
           )}
-
+          <StarCatchModal />
+<QuestModal />
+<TrainingSelectModal />
           {/* ✅ 상단 UI */}
           <div className="bg-slate-800 border-b border-slate-700 z-10 shrink-0">
             <div className="p-3 flex items-center gap-3">
@@ -643,71 +2203,168 @@
             <div className="flex-1 flex flex-col relative overflow-y-auto bg-slate-900">
               {message&&(<div className={`absolute top-4 left-1/2 transform -translate-x-1/2 px-4 py-2 rounded-full shadow-lg z-50 animate-bounce text-sm font-bold ${message.type==="error"?"bg-red-600":"bg-green-600"}`}>{message.text}</div>)}
 
-              {view==="lobby"&&(
-                <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4 content-center max-w-4xl mx-auto w-full">
-                  <div className="col-span-1 md:col-span-2 text-center mb-6"><h2 className="text-3xl font-bold text-blue-300 mb-2">모험 준비</h2><div className="text-sm text-gray-400 mb-2">문제 데이터: {questions.length}개 로드됨</div></div>
-                  {["국어","수학","사회","과학","상식","대장간"].map(subj=>(
-                    <button key={subj} onClick={()=>{ if(subj==="대장간"){ setView("forge"); return; } setCurrentSubject(subj); setView("battle"); spawnMonster(false,player,subj); }}
-                      className="bg-slate-800 hover:bg-slate-700 p-6 rounded-xl border border-slate-600 flex flex-col items-center gap-3 transition transform hover:scale-105 shadow-lg group">
-                      {subj==="상식"?(<Icons.Lightbulb size={40} className="text-yellow-400 group-hover:text-yellow-200"/>):subj==="대장간"?(<Icons.Hammer size={40} className="text-orange-400 group-hover:text-orange-300"/>):(<Icons.BookOpen size={40} className="text-blue-400 group-hover:text-blue-300"/>)}
-                      <span className="font-bold text-xl">{subj==="대장간"?"대장간":`${subj}의 숲`}</span>
-                    </button>
-                  ))}
-                  <button onClick={tryEnterBoss} className="col-span-1 md:col-span-2 bg-gradient-to-r from-red-900/80 to-slate-900 p-6 rounded-xl border border-red-600 flex flex-row items-center justify-center gap-4 transition mt-4 hover:brightness-110">
-                    <Icons.Skull size={48} className="text-red-500 animate-pulse"/><div className="text-left"><span className="font-bold text-2xl text-red-200 block">감자 보스 레이드</span><span className="text-sm text-red-300">조각 5개씩 필요</span></div>
-                  </button>
-                  <button onClick={tryEnterLegendDungeon} className="col-span-1 md:col-span-2 bg-gradient-to-r from-purple-900/80 to-slate-900 p-6 rounded-xl border border-purple-600 flex flex-row items-center justify-center gap-4 transition mt-2 hover:brightness-110">
-                    <Icons.Castle size={48} className="text-purple-400 animate-pulse"/><div className="text-left"><span className="font-bold text-2xl text-purple-200 block">전설의 던전</span><span className="text-sm text-purple-300">Lv.20 이상 / 고난이도 파밍</span></div>
-                  </button>
-                </div>
-              )}
+           {view==="lobby" && (
+  <TownScene
+    player={player}
+    townPos={townPos}
+    others={others}
+    chatOpen={chatOpen}
+    setChatOpen={setChatOpen}
+    chatInput={chatInput}
+    setChatInput={setChatInput}
+    chatMessages={chatMessages}
+    sendChat={sendChat}
+    chatInputRef={chatInputRef}
+  />
+)}
 
-              {(view==="battle"||view==="boss"||view==="legend")&&(
-                <div className="flex flex-col h-full p-4 max-w-3xl mx-auto w-full">
-                  <div className="flex-1 flex flex-col items-center justify-center relative mb-4 min-h-[200px]">
-                    <div className="absolute inset-0 bg-slate-800/30 rounded-xl pointer-events-none"></div>
-                    {monster?(
-                      <div className="z-10 text-center">
-                        {(() => {
-  const s = String(monster.image || "");
-  const isImg = /^(https?:\/\/|data:image\/)/.test(s); // ✅ 링크/데이터URL이면 이미지로 판단
-  return isImg ? (
-    <img src={s} alt={monster.name} className="w-[240px] h-[240px] object-contain mx-auto mb-4 drop-shadow-2xl" />
-  ) : (
-    <div className="text-8xl mb-4 filter drop-shadow-2xl animate-bounce-slow">
-      {monster.image}
+{view==="tower" && TOWER_REST_FLOORS.includes(towerFloor) && (
+  <div className="bg-slate-800 p-6 rounded-xl border border-emerald-600 shadow-xl mb-4">
+    <div className="flex items-center justify-between">
+      <h2 className="text-xl font-bold text-emerald-300">🛏️ 휴식 지점 - {towerFloor}층</h2>
+      <span className="text-xs text-gray-300 bg-slate-900 px-2 py-1 rounded-full">
+        저장포인트: {towerCheckpoint}층
+      </span>
     </div>
-  );
-})()}
-                        <div className="text-2xl font-bold text-red-300 mb-1">{monster.name}</div>
-                        {view==="boss"&&<div className="text-yellow-400 font-bold mb-2">Streak: {bossStreak} / 10</div>}
-                        <div className="w-64 h-5 bg-slate-700 rounded-full overflow-hidden mx-auto border border-slate-600 shadow-inner"><div className="h-full bg-red-600 transition-all duration-300" style={{width:`${(monster.hp/monster.maxHp)*100}%`}}></div></div>
-                        <div className="text-sm mt-1 text-gray-400 font-mono">{monster.hp} / {monster.maxHp} HP</div>
-                      </div>
-                    ):(
-                      <div className="text-center z-10 text-gray-400 flex flex-col items-center gap-2"><Icons.RefreshCw className="animate-spin text-blue-400" size={32}/><span>{isRespawning?"다음 몬스터 찾는 중...":"탐색 중..."}</span></div>
-                    )}
-                  </div>
 
-                  <div className="h-20 overflow-y-auto bg-black/40 rounded p-3 text-sm text-gray-300 mb-4 font-mono shadow-inner border border-slate-700/50">{battleLog.map((log,i)=><div key={i} className="mb-1 border-b border-white/5 pb-1">{log}</div>)}</div>
+    <div className="text-sm text-gray-300 mt-3">
+      잠시 쉬어갈 수 있는 공간입니다. (추후 상점/기능 추가 예정)
+    </div>
 
-                  {currentQuestion&&monster&&(
-                    <div className="bg-slate-800 p-6 rounded-xl border border-slate-600 shadow-xl">
-                      <span className="text-xs bg-blue-900 text-blue-200 px-3 py-1 rounded-full font-bold mb-3 inline-block">{currentQuestion.subject}</span>
-                      <div className="text-xl font-bold mb-6 leading-relaxed">{String(currentQuestion.question).startsWith("http")?(<img src={currentQuestion.question} alt="문제 이미지" className="max-w-full h-auto rounded"/>):currentQuestion.question}</div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {currentQuestion.options.map((opt,idx)=>(
-                          <button key={idx} onClick={()=>handleAnswer(idx)} className="bg-slate-700 hover:bg-blue-600 p-4 rounded-lg text-left transition duration-200 border border-slate-600 hover:border-blue-400 font-medium">
-                            <span className="text-blue-300 mr-2 font-bold">{idx+1}.</span> {String(opt).startsWith("http")?<img src={opt} alt={`보기 ${idx+1}`} className="inline-block max-h-20 rounded"/>:opt}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+    <div className="mt-4 flex gap-2">
+      <button
+        onClick={() => startTowerFloor(Math.min(TOWER_MAX_FLOOR, towerFloor+1), player, towerCheckpoint)}
+        className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded"
+      >
+        다음 층으로
+      </button>
+      <button
+        onClick={() => { setView("lobby"); setMonster(null); }}
+        className="px-4 bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 rounded"
+      >
+        로비
+      </button>
+    </div>
+  </div>
+)}
 
-                  <button onClick={()=>{ setView("lobby"); setMonster(null); }} className="mt-6 text-gray-500 hover:text-white flex items-center justify-center gap-2 py-2 w-full md:w-auto mx-auto"><Icons.LogOut size={16}/> 도망가기</button>
-                </div>
-              )}
+{(view==="battle"||view==="boss"||view==="legend"||(view==="tower" && !TOWER_REST_FLOORS.includes(towerFloor))) && (
+  <div className="flex flex-col h-full p-4 max-w-3xl mx-auto w-full relative">
+
+    {/* ✅ 전투 화면 고정 퀘스트 버튼 (몬스터 박스 밖) */}
+    <button
+      onClick={() => {
+        const e = ensureDaily(player);
+        if (e.changed) savePlayerData(e.player);
+        setQuestOpen(true);
+      }}
+      className="absolute top-2 right-2 z-40 bg-slate-900/70 border border-slate-600 rounded-xl px-3 py-2 text-left shadow-xl hover:bg-slate-900/90 transition"
+      title="오늘의 퀘스트"
+    >
+      <div className="flex items-center gap-2">
+        <Icons.Puzzle size={16} className="text-blue-300" />
+        <span className="text-xs font-bold text-blue-200">오늘의 퀘스트</span>
+      </div>
+
+      <div className="mt-1 text-[11px] text-gray-200">
+        {(() => {
+          const e = ensureDaily(player);
+          const p = e.player;
+          const q = p.dailyQuest?.missions || {};
+          const pr = p.dailyQuestProgress || initDailyProgress();
+          return (
+            <>
+              <div className="flex justify-between gap-3"><span className="text-gray-300">처치</span><span>{pr.kills||0}/{q.kill?.target||0}</span></div>
+              <div className="flex justify-between gap-3"><span className="text-gray-300">연속</span><span>{pr.streakBest||0}/{q.streak?.target||0}</span></div>
+              <div className="flex justify-between gap-3"><span className="text-gray-300">보스</span><span>{pr.bossClears||0}/{q.boss?.target||0}</span></div>
+            </>
+          );
+        })()}
+      </div>
+    </button>
+
+{/* ✅ 몬스터 영역 */}
+{!(view === "tower" && TOWER_REST_FLOORS.includes(towerFloor)) && (
+  <div className="flex flex-col items-center justify-center relative mb-4 min-h-[200px]">
+    <div className="absolute inset-0 bg-slate-800/30 rounded-xl pointer-events-none"></div>
+
+    {monster ? (
+      <div className="z-10 text-center">
+        {(() => {
+          const s = monster?.image; // URL 또는 null
+          const isImg = typeof s === "string" && /^(https?:\/\/|data:image\/)/.test(s);
+          const fallback = monster?.emoji || "🥔";
+
+          return isImg ? (
+            <img
+              src={s}
+              alt={monster.name}
+              className="w-[240px] h-[240px] object-contain mx-auto mb-4 drop-shadow-2xl"
+            />
+          ) : (
+            <div className="text-8xl mb-4 filter drop-shadow-2xl animate-bounce-slow">
+              {fallback}
+            </div>
+          );
+        })()}
+
+        <div className="text-2xl font-bold text-red-300 mb-1">{monster.name}</div>
+
+        {/* 이하 HP바 등 기존 코드 계속 */}
+      </div>
+    ) : (
+      <div className="text-center z-10 text-gray-400 flex flex-col items-center gap-2">
+        <Icons.RefreshCw className="animate-spin text-blue-400" size={32}/>
+        <span>{isRespawning ? "다음 몬스터 찾는 중..." : "탐색 중..."}</span>
+      </div>
+    )}
+  </div>
+)}
+
+    {/* ✅ 전투 로그 */}
+    <div className="h-20 overflow-y-auto bg-black/40 rounded p-3 text-sm text-gray-300 mb-4 font-mono shadow-inner border border-slate-700/50">
+      {battleLog.map((log,i)=><div key={i} className="mb-1 border-b border-white/5 pb-1">{log}</div>)}
+    </div>
+
+    {/* ✅ 문제 */}
+    {currentQuestion && monster && (
+      <div className="bg-slate-800 p-6 rounded-xl border border-slate-600 shadow-xl">
+        <span className="text-xs bg-blue-900 text-blue-200 px-3 py-1 rounded-full font-bold mb-3 inline-block">
+          {currentQuestion.subject}
+        </span>
+
+        <div className="text-xl font-bold mb-6 leading-relaxed">
+          {String(currentQuestion.question).startsWith("http")
+            ? <img src={currentQuestion.question} alt="문제 이미지" className="max-w-full h-auto rounded"/>
+            : currentQuestion.question}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {currentQuestion.options.map((opt,idx)=>(
+            <button
+              key={idx}
+              onClick={()=>handleAnswer(idx)}
+              className="bg-slate-700 hover:bg-blue-600 p-4 rounded-lg text-left transition duration-200 border border-slate-600 hover:border-blue-400 font-medium"
+            >
+              <span className="text-blue-300 mr-2 font-bold">{idx+1}.</span>
+              {String(opt).startsWith("http")
+                ? <img src={opt} alt={`보기 ${idx+1}`} className="inline-block max-h-20 rounded"/>
+                : opt}
+            </button>
+          ))}
+        </div>
+      </div>
+    )}
+
+    {/* ✅ 도망가기 */}
+    <button
+      onClick={()=>{ setView("lobby"); setMonster(null); }}
+      className="mt-6 text-gray-500 hover:text-white flex items-center justify-center gap-2 py-2 w-full md:w-auto mx-auto"
+    >
+      <Icons.LogOut size={16}/> 도망가기
+    </button>
+  </div>
+)}	
 
               {(view==="inventory"||view==="enhance")&&(
                 <div className="p-4 h-full overflow-y-auto md:hidden">
@@ -727,10 +2384,28 @@
 
             <div className="hidden md:flex w-80 bg-slate-800 border-l border-slate-700 flex-col shrink-0">
               <div className="flex text-sm font-bold border-b border-slate-700">
-                <button className={`flex-1 p-3 flex items-center justify-center gap-2 ${view==="enhance"?"bg-slate-700 text-gray-400":"bg-slate-800 text-blue-400"}`} onClick={()=>view==="enhance"?setView("lobby"):null}><Icons.Sword size={16}/> 장비</button>
-                <button className={`flex-1 p-3 flex items-center justify-center gap-2 ${view==="enhance"?"bg-slate-800 text-yellow-400":"bg-slate-700 text-gray-400"}`} onClick={()=>setView("enhance")}><Icons.Hammer size={16}/> 강화</button>
+              <div className="flex text-sm font-bold border-b border-slate-700">
+  <button
+    className={`flex-1 h-8 px-10 flex items-center justify-center gap-2 ${
+      sideTab === "equip" ? "bg-slate-800 text-blue-400" : "bg-slate-700 text-gray-400"
+    }`}
+    onClick={() => setSideTab("equip")}
+  >
+    <Icons.Sword size={16}/> 장비
+  </button>
+
+  <button
+    className={`flex-1 h-8 px-10 flex items-center justify-center gap-2 ${
+      sideTab === "enhance" ? "bg-slate-800 text-yellow-400" : "bg-slate-700 text-gray-400"
+    }`}
+    onClick={() => setSideTab("enhance")}
+  >
+    <Icons.Hammer size={16}/> 강화
+  </button>
+</div>
+
               </div>
-              <div className="flex-1 overflow-y-auto p-3">{renderInventory(view==="enhance")}</div>
+<div className="flex-1 overflow-y-auto p-3">{renderInventory(sideTab === "enhance")}</div>
             </div>
           </div>
 
@@ -749,4 +2424,3 @@
   </script>
 </body>
 </html>
-
